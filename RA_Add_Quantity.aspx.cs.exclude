@@ -1,0 +1,865 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Collections;
+using System.Data;
+
+public partial class RA_Add_Quantity : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null && ("RCM".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString())))
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());
+                bindUOM();
+                bindDepartment();
+            }
+            else
+            {
+                Common.Show("You are not authorised for it\\n");
+                Response.Redirect("Default.aspx");
+            }
+        }
+    }
+
+    protected void bindUOM()
+{
+     StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append("select distinct upper(UOM) UOM from RAB_ITEM_BREAKUP where uom is not null order by upper(uom)");
+        objDB.bindDropDownList(ddUOM, sbQuery.ToString(), paramList, "UOM", "UOM", "", "--Select UOM--");
+}
+
+    protected void bindDepartment()
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append("select wid_dscl,wid_des from icmsengg.sor_discplne where WID_ITEMCHAR is not null order by wid_des");
+        objDB.bindDropDownList(ddDepartment, sbQuery.ToString(), paramList, "wid_dscl", "wid_des", "", "--Select Discipline--");
+
+    }
+
+    protected void bindSequenceNumber(string departmentCode)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append("select distinct wid_seqno,wid_seqno||' '||wid_sdesc description,to_char(substr(wid_ldesc,0,500)) from icmsengg.sor_wid where upper(wid_wicd) like '" + departmentCode.Trim().ToUpper() + "%' and wid_uom is not null and wid_inuse='C' and wid_seqno is not null and wid_var=0 order by wid_seqno ");
+        objDB.bindDropDownList(ddSequenceNumber, sbQuery.ToString(), paramList, "wid_seqno", "description", "", "--Select Sequence Number--");
+        ModalPopupExtenderForAssignRack.Show();
+    }
+
+    protected void  bindDescriptionUnit(string departmentCode, string sequenceNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append("select wid_uom,to_char(substr(wid_ldesc,0,500)) ldescription from icmsengg.sor_wid where upper(wid_seqno) =:SEQ_NO and wid_uom is not null and wid_inuse='C' and rownum =1 ");
+        paramList.Add("SEQ_NO", sequenceNumber);
+        DataTable tblData = new DataTable();
+        tblData = objDB.bindDataTable(sbQuery.ToString(), paramList);
+        if (tblData.Rows.Count > 0)
+        {
+            txtItemUOM.Text = tblData.Rows[0]["wid_uom"].ToString();
+            lblActivityDesc.Text = tblData.Rows[0]["ldescription"].ToString();
+        }
+        else
+        { 
+        
+        }
+        ModalPopupExtenderForAssignRack.Show();
+    }       
+
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("VEND".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_MASTER where C_CODE=:C_CODE");
+            paramList.Add("C_CODE", userId);
+        }
+        else if ("BE".Equals(userRole) || "AC".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE='Y'  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+        }
+
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+    }
+    protected void bindTenders_old(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        if ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()))
+        {
+          /*  sbQuery.Append("SELECT DISTINCT TENDER_NO FROM  RAB_TENDER_USERS ")
+                .Append(" WHERE JOB_NO=:JOB_NO ")
+                .Append(" AND EMPNO=:EMPNO ")
+                .Append(" AND ROLE=:ROLE ")
+                .Append(" ORDER BY TENDER_NO ");
+           */
+            sbQuery.Append("SELECT DISTINCT TENDER_NO, tenderno||' ( '||b.title||' '||b.title1||')' description  ")
+            .Append(" FROM  RAB_TENDER_USERS a,ppms.tenderschedule b ")
+               .Append(" WHERE JOB_NO=:JOB_NO ")
+               .Append(" AND EMPNO=:EMPNO ")
+               .Append(" AND ROLE=:ROLE ")
+               .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+              .Append(" and A.TENDER_NO=b.tendersrno")
+               .Append(" ORDER BY TENDER_NO ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+
+        }
+        else if ("VEND".Equals(Session["ROLE"].ToString()))
+        {
+          /* sbQuery.Append(" Select DISTINCT TENDER_NO FROM RAB_TENDER_MASTER ")
+                .Append(" WHERE JOB_NO=:JOB_NO ")
+                .Append(" and C_CODE=:C_CODE ")
+                .Append(" ORDER BY TENDER_NO ");
+        */
+            sbQuery.Append(" Select DISTINCT TENDER_NO , tenderno||' ( '||b.title||' '||b.title1||')' description ")
+             .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+              .Append(" WHERE JOB_NO=:JOB_NO ")
+              .Append(" and C_CODE=:C_CODE ")
+              .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+              .Append(" and A.TENDER_NO=b.tendersrno")
+              .Append(" ORDER BY TENDER_NO ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("C_CODE", Session["USERID"].ToString());
+        }
+        else
+        {
+           /* sbQuery.Append(" Select DISTINCT TENDER_NO FROM RAB_TENDER_MASTER ")
+                  .Append(" WHERE JOB_NO=:JOB_NO ")
+                  .Append(" ORDER BY TENDER_NO ");
+            */
+            sbQuery.Append(" Select DISTINCT TENDER_NO, tenderno||' ( '||b.title||' '||b.title1||')' description ")
+                    .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+                   .Append(" WHERE JOB_NO=:JOB_NO ")
+                   .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+                   .Append(" and A.TENDER_NO=b.tendersrno")
+                   .Append(" ORDER BY TENDER_NO");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "TENDER_NO", "description", "", "--Select Tender Number--");
+    }
+
+
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append("SELECT DISTINCT b.TENDER_NO||'~'||b.part_no tender_part, b.tender_no||'-'|| b.part_no || ' ( '||b.TITLE||')' description  ")
+             .Append(" FROM  RAB_TENDER_USERS a,RAB_TENDER_MASTER b ")
+               .Append(" WHERE b.JOB_NO=:JOB_NO ")
+               .Append(" AND EMPNO=:EMPNO ")
+               .Append(" AND ROLE=:ROLE ")
+               .Append(" and b.job_no=A.JOB_NO")
+              .Append(" and A.TENDER_NO=b.TENDER_NO")
+              .Append(" and A.PART_NO=b.PART_NO")
+               .Append(" ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+
+        }
+        else if ("VEND".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append(" SELECT DISTINCT ")
+              .Append("TENDER_NO||'~'||a.part_no tender_part, ")
+              .Append(" tender_no||'-'|| a.part_no||' ( '||A.TITLE||')'  description ")
+              .Append(" FROM RAB_TENDER_MASTER a ")
+               .Append("WHERE     JOB_NO =:JOB_NO ")
+              .Append("  AND C_CODE =:C_CODE ")
+               .Append("ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("C_CODE", Session["USERID"].ToString());
+        }
+        else
+        {
+            sbQuery.Append(" Select DISTINCT TENDER_NO||'~'||a.part_no tender_part, tender_no||'-'|| a.part_no||' ( '||a.TITLE||')' description ")
+                      .Append(" FROM RAB_TENDER_MASTER a ")
+                     .Append(" WHERE JOB_NO=:JOB_NO ")
+                     .Append(" ORDER BY tender_part");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "tender_part", "description", "", "--Select Tender Number--");
+    }
+
+    protected void ddDepartment_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        lblActivityDesc.Text = "";
+        txtItemUOM.Text = "";
+        if (!"".Equals(ddDepartment.SelectedValue))
+        {
+            bindSequenceNumber(ddDepartment.SelectedValue);
+        }
+        else
+        {
+            ModalPopupExtenderForAssignRack.Show();
+            Common.Show("Please select Department\\n");
+        }
+    }
+
+    protected void ddSequenceNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        lblActivityDesc.Text = "";
+        txtItemUOM.Text = "";
+        if (!"".Equals(ddDepartment.SelectedValue) && !"".Equals(ddSequenceNumber.SelectedValue))
+        {
+            bindDescriptionUnit(ddDepartment.SelectedValue, ddSequenceNumber.SelectedValue);
+        }
+        else
+        {
+            ModalPopupExtenderForAssignRack.Show();
+            Common.Show("Please select Department and Sequence number\\n");
+        }
+        ModalPopupExtenderForAssignRack.Show();
+    }    
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+            bindTenders(ddJobNumber.SelectedValue);
+        }
+        else
+        {
+            Common.Show("Please select Job Number\\n");
+        }
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue) && !"".Equals(ddTenderNo.SelectedValue))
+        {
+            string[] strArray = ddTenderNo.SelectedValue.Split('~');
+            bindSor(ddJobNumber.SelectedValue, strArray[0], strArray[1]);
+            trSor.Visible = true;
+            pnlSORItems.Visible = false;
+        }
+        else
+        {            
+            Common.Show("Please select Job Number and Tender Number");
+            trSor.Visible = false;
+        }
+    }
+
+    protected void bindSor(string jobNumber, string tenderNo, string partNo)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("SELECT distinct REF_ID, JOB_NO, SUB_JOB, TENDER_NO, PART_NO, SOR_NO, C_CODE, LOI_NO, LOI_DATE, UNIT_NO,TEND_SOR_ID")
+            .Append(" FROM RAB_TENDER_MASTER ")
+            .Append(" where upper(JOB_NO)=:JOB_NO ")
+            .Append(" AND upper(TENDER_NO)=:TENDER_NO ")
+            .Append(" AND upper(PART_NO)=:PART_NO ")
+            .Append(" order by SUB_JOB, TENDER_NO, PART_NO, SOR_NO ");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("JOB_NO", jobNumber.ToUpper());
+        paramList.Add("TENDER_NO", tenderNo.ToUpper());
+        paramList.Add("PART_NO", partNo.ToUpper());
+        objDB.bindGridView(gvSOR, sbQuery.ToString(), paramList);
+    }
+
+    protected void gvSOR_RowCommand(object sender, GridViewCommandEventArgs e)
+    {
+        try
+        {
+            if (e.CommandName.Equals("Select"))
+            {
+                int RowIndex = Convert.ToInt16(e.CommandArgument.ToString());
+                gvSOR.SelectedIndex = RowIndex;
+                gvSOR.SelectedRow.BackColor = System.Drawing.Color.LightYellow;
+            }
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    protected void gvSOR_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        GridViewRow row = gvSOR.SelectedRow;
+        HiddenField hdReferenceID = new HiddenField();
+        hdReferenceID = (HiddenField)row.FindControl("hdReferenceID");
+        HiddenField hdSorNumber = new HiddenField();
+        hdSorNumber = (HiddenField)row.FindControl("hdSorNumber");
+        HiddenField hdTenderSorId = new HiddenField();
+        hdTenderSorId = (HiddenField)row.FindControl("hdTenderSorId");
+
+        HiddenField hdPartNo = new HiddenField();
+        hdPartNo = (HiddenField)row.FindControl("hdPartNo");
+        
+        string referenceId = hdReferenceID.Value;
+        bindSORItems(referenceId, ddJobNumber.SelectedValue);
+        pnlSORItems.Visible = true;
+        ViewState["REF_ID"] = referenceId;
+        ViewState["SORNO"] = hdSorNumber.Value;
+        ViewState["TEND_SOR_ID"] = hdTenderSorId.Value;
+        lblSorNumber.Text = ViewState["SORNO"].ToString();
+    }
+
+    protected void gvSOR_RowDataBound(object sender, GridViewRowEventArgs e)
+    {
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            //// loop all data rows
+            //foreach (DataControlFieldCell cell in e.Row.Cells)
+            //{
+            //    // check all cells in one row
+            //    foreach (Control control in cell.Controls)
+            //    {
+            //        // Must use LinkButton here instead of ImageButton
+            //        // if you are having Links (not images) as the command button.
+            //        //ImageButton button = control as ImageButton;
+            //        LinkButton button = control as LinkButton;
+            //        if (button != null && button.CommandName == "Delete")
+            //            // Add delete confirmation
+            //            button.OnClientClick = "if (!confirm('Are you sure " +
+            //                   "you want to delete this category?')) return;";
+            //    }
+            //}
+        }
+    }
+
+    protected void bindSORItems(string referenceId, string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+       /* sbQuery.Append(" SELECT distinct REF_ID, SEQ_NO, a.ITEM_RATE, a.UOM, a.SORT_NO, ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY, SITE_QTY, ACT_PROG, FLAG_HO, a.sorno ")
+            .Append(" sdesc,to_char(nvl(ldesc,ACT_DESC)) ldesc  ")
+           .Append("   FROM RAB_ITEM_BREAKUP a,icms_cba.cba_tender  b ")
+           .Append("   where upper(REF_ID)=:REF_ID ")
+           .Append("   and A.SEQ_NO=B.SEQNO ")
+            .Append("  and b.JOB=:JOBNO ")
+            .Append("  and b.jtn=:TENDER_NO ")
+            .Append("  order by SORT_NO ");
+        */
+
+   /*     sbQuery.Append(" SELECT  REF_ID, ")
+                 .Append("  SEQ_NO, ")
+                  .Append(" ITEM_RATE, ")
+                  .Append(" UOM, ")
+                  .Append(" SORT_NO, ")
+                  .Append(" ACT_DESC, ")
+                  .Append(" ACT_PERCENT, ")
+                  .Append(" ACT_SEQ, ")
+                 .Append("  ADDED_ON, ")
+                  .Append(" HO_QTY,   ")                
+                 .Append("  ACT_PROG, ")
+                .Append("   FLAG_HO, ")
+                 .Append("   sdesc, ")
+                 .Append("  case when ldesc is null   then ra_get_seq_desc (SEQ_NO, sdesc)  else  ldesc  end  ldesc ")
+                 .Append("   FROM ")
+  .Append(" ( ( ")
+  .Append(" SELECT DISTINCT REF_ID, ")
+               .Append("    SEQ_NO, ")
+              .Append("     a.ITEM_RATE, ")
+             .Append("      a.UOM, ")
+                .Append("   a.SORT_NO, ")
+               .Append("    ACT_DESC, ")
+                .Append("   ACT_PERCENT, ")
+               .Append("    ACT_SEQ, ")
+                .Append("   ADDED_ON, ")
+               .Append("    HO_QTY, ")         
+                .Append("   ACT_PROG, ")
+               .Append("    FLAG_HO, ")
+               .Append("    a.sorno sdesc, ")
+                 .Append("   ( TO_char (substr(a.ldesc,0,4000))) ldesc ")
+   .Append("  FROM RAB_ITEM_BREAKUP a, icms_cba.cba_tender b ")
+  .Append("  WHERE     UPPER (REF_ID) =:REF_ID          ")
+       .Append("   AND b.JOB =:JOBNO ")
+     .Append("    AND b.jtn =:TENDER_NO ")
+    .Append("     AND B.PNO =:PART_NO ")
+     .Append("     AND A.SEQ_NO = B.SEQNO ")
+    
+    .Append("     AND FLAG_HO ='N' ")
+    .Append("    ) ")
+   .Append("     UNION ")
+   .Append("     ( ")
+   .Append("     SELECT  REF_ID, ")
+    .Append("               SEQ_NO, ")
+      .Append("             ITEM_RATE, ")
+      .Append("             UOM, ")
+       .Append("            SORT_NO, ")
+          .Append("         ACT_DESC, ")
+           .Append("        ACT_PERCENT, ")
+            .Append("       ACT_SEQ, ")
+             .Append("      ADDED_ON, ")
+
+             .Append("       SITE_QTY HO_QTY,")
+             .Append("      ACT_PROG, ")
+             .Append("      FLAG_HO, ")
+              .Append("     sorno sdesc, ")
+              .Append("      ACT_DESC ldesc ")
+              .Append("      FROM ")
+              .Append("      RAB_ITEM_BREAKUP  ")
+                 .Append("   WHERE UPPER (REF_ID) =:REF_ID1  ")
+                .Append("    AND FLAG_HO ='Y' ")
+                   
+       .Append(" )  ")
+        
+.Append(" ORDER BY SORT_NO) ");
+*/
+        sbQuery.Append(@"SELECT REF_ID,
+       SEQ_NO,
+       ITEM_RATE,
+       UOM,
+       SORT_NO,
+       ACT_DESC,
+       ACT_PERCENT,
+       ACT_SEQ,
+       ADDED_ON,
+       HO_QTY,
+       ACT_PROG,
+       FLAG_HO,
+       sdesc,
+       CASE
+          WHEN ldesc IS NULL THEN ra_get_seq_desc (SEQ_NO, sdesc)
+          ELSE ldesc
+       END
+          ldesc
+  FROM ( (SELECT DISTINCT REF_ID,
+                          SEQ_NO,
+                          nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE,
+                          a.UOM,
+                          a.SORT_NO,
+                          ACT_DESC,
+                          ACT_PERCENT,
+                          ACT_SEQ,
+                          ADDED_ON,
+                          HO_QTY,
+                          ACT_PROG,
+                          FLAG_HO,
+                          a.sorno sdesc,
+                          (TO_CHAR (SUBSTR (a.ldesc, 0, 4000))) ldesc
+            FROM RAB_ITEM_BREAKUP a, icms_cba.cba_tender b
+           WHERE     UPPER (REF_ID) = :REF_ID
+                 AND b.JOB = :JOBNO
+                 AND b.jtn = :TENDER_NO
+                 AND B.PNO = :PART_NO
+                 AND A.SEQ_NO = B.SEQNO
+                 AND FLAG_HO = 'N')
+        UNION
+        (SELECT DISTINCT REF_ID,
+                          SEQ_NO,
+                          nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE,
+                          a.UOM,
+                          a.SORT_NO,
+                          ACT_DESC,
+                          ACT_PERCENT,
+                          ACT_SEQ,
+                          ADDED_ON,
+                          HO_QTY,
+                          ACT_PROG,
+                          FLAG_HO,
+                          a.sorno sdesc,
+                          (TO_CHAR (SUBSTR (a.ldesc, 0, 4000))) ldesc
+            FROM RAB_ITEM_BREAKUP a, CPMSTENDERS.VW_C_FOA_ITEMS_SITEMS b
+           WHERE     UPPER (REF_ID) =:REF_ID
+                 AND b.JOB_code =:JOBNO
+                 AND b.SOR_NO = A.SORNO
+                 AND A.SEQ_NO = B.item_sl_no
+                 AND FLAG_HO = 'N')
+                 union
+        (SELECT REF_ID,
+                SEQ_NO,
+                nvl(ITEM_RATE_EDITED,ITEM_RATE) ITEM_RATE,
+                UOM,
+                SORT_NO,
+                ACT_DESC,
+                ACT_PERCENT,
+                ACT_SEQ,
+                ADDED_ON,
+                SITE_QTY HO_QTY,
+                ACT_PROG,
+                FLAG_HO,
+                sorno sdesc,
+                ACT_DESC ldesc
+           FROM RAB_ITEM_BREAKUP
+          WHERE UPPER (REF_ID) = :REF_ID AND FLAG_HO = 'Y')
+        ORDER BY SORT_NO)");
+
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        paramList.Add("REF_ID", referenceId.ToUpper());
+        paramList.Add("JOBNO", jobNumber);
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("PART_NO", strArray[1]);
+       // paramList.Add("REF_ID1", referenceId.ToUpper());
+        
+        objDB.bindGridView(gvSORItems, sbQuery.ToString(), paramList);
+        int new_sort_number= gvSORItems.Rows.Count  + 1;
+        ViewState["SORT_NO"] = new_sort_number;
+    }
+
+    protected void rbStandard_CheckedChanged(object sender, EventArgs e)
+    {
+        enableFields();
+        ModalPopupExtenderForAssignRack.Show();
+    }
+
+    protected void rbOthers_CheckedChanged(object sender, EventArgs e)
+    {
+        enableFields();
+        ModalPopupExtenderForAssignRack.Show();
+    }
+
+    protected void enableFields()
+    {
+        if (rbStandard.Checked)
+        {
+            tblItems.Visible = true;
+            ddSequenceNumber.Visible = true;
+            txtSequenceNumber.Visible = false;
+            lblActivityDesc.Visible = true;
+            txtActivityDesc.Visible = false;
+        }
+        else if (rbOthers.Checked)
+        {
+            tblItems.Visible = true;
+            ddSequenceNumber.Visible = false;
+            txtSequenceNumber.Visible = true;
+            lblActivityDesc.Visible = false;
+            txtActivityDesc.Visible = true;
+        }
+        else
+        {
+            tblItems.Visible = false;
+            btnAddQtySubmit.Enabled = false;
+        }
+    }
+
+    protected void btnAddQty_Click(object sender, EventArgs e)
+    {
+        ModalPopupExtenderForAssignRack.Show();
+        if (rbStandard.Checked == false || rbOthers.Checked == false)
+        {
+            tblItems.Visible = false;
+        }
+        else
+        {
+            enableFields();
+        }
+    }
+
+    protected void btnAddQtySubmit_Click(object sender, EventArgs e)
+    {
+        string errorMsg = "";
+
+        StringBuilder sbQry = new StringBuilder();
+        sbQry.Append("SELECT SEQ_NO FROM RAB_ITEM_BREAKUP WHERE REF_ID=:REF_ID AND SORNO=:SORNO AND UPPER(SEQ_NO)=:SEQ_NO");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("REF_ID", ViewState["REF_ID"].ToString());
+       // paramList.Add("SEQ_NO", txtSequenceNumber.Text.Trim().ToUpper());
+        paramList.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToUpper());
+        paramList.Add("SORNO", lblSorNumber.Text.ToString());
+
+        if (objDB.executeScalar(sbQry.ToString(), paramList).Length > 0)
+        {
+            errorMsg = errorMsg + "Sequence number should be unique and mandatory\\n";
+        }
+
+      //  if (txtActivityDesc.Text.Trim().Length < 1)
+        if (rbStandard.Checked && lblActivityDesc.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Activity Description is mandatory\\n";
+        }
+
+        if (rbOthers.Checked && txtActivityDesc.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Activity Description is mandatory\\n";
+        }
+
+        if (txtItemRate.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Item rate is mandatory\\n";
+        }
+
+       // if ("".Equals(ddUOM.SelectedValue))
+        if ("".Equals(txtItemUOM.Text.Trim()))
+        {
+            errorMsg = errorMsg + "UOM is mandatory, kindly enter\\n";
+        }
+
+       // if (txtSequenceNumber.Text.Trim().Length < 1)
+        if (rbStandard.Checked && ddSequenceNumber.SelectedValue.Equals(""))
+        {
+            errorMsg = errorMsg + "Sequence Number is mandatory\\n";
+        }
+
+        if (rbOthers.Checked && txtSequenceNumber.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Sequence Number is mandatory\\n";
+        }
+
+        if (txtQuantity.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Quantity is mandatory\\n";
+        }
+
+        if (errorMsg.Length == 0)
+        {
+            //Insert Record
+            StringBuilder sbInsertQuery1 = new StringBuilder();
+            StringBuilder sbInsertQuery2 = new StringBuilder();
+            StringBuilder sbInsertQuery3 = new StringBuilder();
+            Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+            Dictionary<string, string> paramList2 = new Dictionary<string, string>();
+            Dictionary<string, string> paramList3 = new Dictionary<string, string>();
+
+            paramList1.Add("REF_ID", ViewState["REF_ID"].ToString());
+            //paramList1.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            //paramList1.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+
+            if (rbStandard.Checked )
+            {
+                paramList1.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+            }
+            else if (rbOthers.Checked && txtSequenceNumber.Text.Length > 0)
+            {
+                paramList1.Add("SEQ_NO", txtSequenceNumber.Text);
+            }
+            else
+            {
+                paramList1.Add("SEQ_NO", "");
+            }
+            
+            
+            
+            paramList1.Add("ITEM_RATE", txtItemRate.Text.Trim());
+            //paramList1.Add("UOM", ddUOM.SelectedValue);
+            paramList1.Add("UOM", txtItemUOM.Text.Trim());
+            paramList1.Add("SORT_NO", ViewState["SORT_NO"].ToString());
+           // paramList1.Add("ACT_DESC", txtActivityDesc.Text.Trim());
+
+           
+            if (rbStandard.Checked && lblActivityDesc.Text.Length > 499)
+            {
+                paramList1.Add("ACT_DESC", lblActivityDesc.Text.Substring(0, 499));
+            }
+            else if (rbStandard.Checked && lblActivityDesc.Text.Length < 499)
+            {
+                paramList1.Add("ACT_DESC", lblActivityDesc.Text);
+            }
+            else if (rbOthers.Checked && txtActivityDesc.Text.Length > 0)
+            {
+                paramList1.Add("ACT_DESC", txtActivityDesc.Text);
+            }
+
+            //if (lblActivityDesc.Text.Length > 499)
+            //{
+            //    paramList1.Add("ACT_DESC", lblActivityDesc.Text.Substring(0,499));
+            //}
+            //else
+            //{
+            //    paramList1.Add("ACT_DESC", lblActivityDesc.Text);
+            //}
+            
+            paramList1.Add("SITE_QTY", txtQuantity.Text.Trim());
+            paramList1.Add("SORNO", lblSorNumber.Text.ToString());
+            paramList1.Add("ADDED_BY", Session["USERID"].ToString());
+
+            sbInsertQuery1.Append(" INSERT INTO RAB_ITEM_BREAKUP (REF_ID, SEQ_NO, ITEM_RATE, UOM, SORT_NO, ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, SITE_QTY, ACT_PROG, FLAG_HO, SORNO, ADDED_BY) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, :ITEM_RATE, :UOM, :SORT_NO, :ACT_DESC, 0, 0, sysdate, :SITE_QTY, 0, 'Y', :SORNO, :ADDED_BY)");
+
+            //  sbInsertQuery2.Append(" INSERT INTO RAB_TENDER_EXTRA_ITEM (REF_ID, SEQ_NO, SDESC, LDESC) VALUES (")
+            //      .Append(" :REF_ID, :SEQ_NO, :SDESC, :LDESC)");
+
+            sbInsertQuery2.Append(" INSERT INTO RAB_TENDER_DETAILS (REF_ID, SEQ_NO, ACTIVITY_PERCENT, ACTIVITY_SEQ, ADDED_BY, IS_BREAKABLE) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, 95, 1, :ADDED_BY, 'Y' )");
+            paramList2.Add("REF_ID", ViewState["REF_ID"].ToString());
+            //paramList2.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            //paramList2.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+
+            if (rbStandard.Checked)
+            {
+                paramList2.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+            }
+            else if (rbOthers.Checked && txtSequenceNumber.Text.Length > 0)
+            {
+                paramList2.Add("SEQ_NO", txtSequenceNumber.Text);
+            }
+            else
+            {
+                paramList2.Add("SEQ_NO", "");
+            }
+
+
+            paramList2.Add("ADDED_BY", Session["USERID"].ToString());
+
+            sbInsertQuery3.Append(" INSERT INTO RAB_TENDER_DETAILS (REF_ID, SEQ_NO, ACTIVITY_PERCENT, ACTIVITY_SEQ, ADDED_BY, IS_BREAKABLE,ACTIVITY_DESC) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, 5, 2, :ADDED_BY, 'N','Final payment' )");
+            paramList3.Add("REF_ID", ViewState["REF_ID"].ToString());
+            //paramList3.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            //paramList3.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+            
+            if (rbStandard.Checked)
+            {
+                paramList3.Add("SEQ_NO", ddSequenceNumber.SelectedValue.ToString().Trim());
+            }
+            else if (rbOthers.Checked && txtSequenceNumber.Text.Length > 0)
+            {
+                paramList3.Add("SEQ_NO", txtSequenceNumber.Text);
+            }
+            else
+            {
+                paramList3.Add("SEQ_NO", "");
+            }
+            
+            paramList3.Add("ADDED_BY", Session["USERID"].ToString());
+
+            string[] queryArray = new String[3];
+            Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[3];
+
+            queryArray[0] = sbInsertQuery1.ToString();
+            queryArray[1] = sbInsertQuery2.ToString();
+            queryArray[2] = sbInsertQuery3.ToString();
+
+            paramListArray[0] = paramList1;
+            paramListArray[1] = paramList2;
+            paramListArray[2] = paramList3;
+            int recordsAffected = 0;
+            recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+            if (recordsAffected > 0)
+            {
+                Common.Show("Item added succesfully");
+                bindSORItems(ViewState["REF_ID"].ToString(), ddJobNumber.SelectedValue);
+            }
+        }
+        else
+        {
+            ModalPopupExtenderForAssignRack.Show();
+            Common.Show(errorMsg);
+        }
+    }    
+    
+    protected void btnAddQtySubmit_Click_old_05042016(object sender, EventArgs e)
+    {
+        string errorMsg = "";
+
+        StringBuilder sbQry = new StringBuilder();
+        sbQry.Append("SELECT SEQ_NO FROM RAB_ITEM_BREAKUP WHERE REF_ID=:REF_ID AND SORNO=:SORNO AND UPPER(SEQ_NO)=:SEQ_NO");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("REF_ID", ViewState["REF_ID"].ToString());
+        paramList.Add("SEQ_NO", txtSequenceNumber.Text.Trim().ToUpper());
+        paramList.Add("SORNO", lblSorNumber.Text.ToString());
+
+        if (objDB.executeScalar(sbQry.ToString(), paramList).Length > 0)
+        {
+            errorMsg = errorMsg + "Sequence number should be unique and mandatory\\n";
+        }
+
+        if (txtActivityDesc.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Activity Description is mandatory\\n";
+        }
+        if (txtItemRate.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Item rate is mandatory\\n";
+        }
+
+        if ("".Equals(ddUOM.SelectedValue))
+        {
+            errorMsg = errorMsg + "UOM is mandatory, kindly select\\n";
+        }
+
+        if (txtSequenceNumber.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Sequence Number is mandatory\\n";
+        }
+
+        if (txtQuantity.Text.Trim().Length < 1)
+        {
+            errorMsg = errorMsg + "Quantity is mandatory\\n";
+        }
+
+        if (errorMsg.Length == 0)
+        {
+            //Insert Record
+            StringBuilder sbInsertQuery1 = new StringBuilder();
+            StringBuilder sbInsertQuery2 = new StringBuilder();
+            StringBuilder sbInsertQuery3 = new StringBuilder();
+            Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+            Dictionary<string, string> paramList2 = new Dictionary<string, string>();
+            Dictionary<string, string> paramList3 = new Dictionary<string, string>();
+
+            paramList1.Add("REF_ID", ViewState["REF_ID"].ToString());
+            paramList1.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            paramList1.Add("ITEM_RATE", txtItemRate.Text.Trim());
+            paramList1.Add("UOM", ddUOM.SelectedValue);
+            paramList1.Add("SORT_NO", ViewState["SORT_NO"].ToString());
+            paramList1.Add("ACT_DESC", txtActivityDesc.Text.Trim());
+            paramList1.Add("SITE_QTY", txtQuantity.Text.Trim());
+            paramList1.Add("SORNO", lblSorNumber.Text.ToString());
+            paramList1.Add("ADDED_BY", Session["USERID"].ToString());
+            
+            sbInsertQuery1.Append(" INSERT INTO RAB_ITEM_BREAKUP (REF_ID, SEQ_NO, ITEM_RATE, UOM, SORT_NO, ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY, SITE_QTY, ACT_PROG, FLAG_HO, SORNO, ADDED_BY) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, :ITEM_RATE, :UOM, :SORT_NO, :ACT_DESC, 0, 0, sysdate,0, :SITE_QTY, 0, 'N', :SORNO, :ADDED_BY)");
+
+          //  sbInsertQuery2.Append(" INSERT INTO RAB_TENDER_EXTRA_ITEM (REF_ID, SEQ_NO, SDESC, LDESC) VALUES (")
+          //      .Append(" :REF_ID, :SEQ_NO, :SDESC, :LDESC)");
+
+            sbInsertQuery2.Append(" INSERT INTO RAB_TENDER_DETAILS (REF_ID, SEQ_NO, ACTIVITY_PERCENT, ACTIVITY_SEQ, ADDED_BY, IS_BREAKABLE) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, 95, 1, :ADDED_BY, 'Y' )");
+            paramList2.Add("REF_ID", ViewState["REF_ID"].ToString());
+            paramList2.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            paramList2.Add("ADDED_BY", Session["USERID"].ToString());
+
+            sbInsertQuery3.Append(" INSERT INTO RAB_TENDER_DETAILS (REF_ID, SEQ_NO, ACTIVITY_PERCENT, ACTIVITY_SEQ, ADDED_BY, IS_BREAKABLE,ACTIVITY_DESC) values ( ")
+                .Append(" :REF_ID, :SEQ_NO, 5, 2, :ADDED_BY, 'N','Final payment' )");
+            paramList3.Add("REF_ID", ViewState["REF_ID"].ToString());
+            paramList3.Add("SEQ_NO", txtSequenceNumber.Text.Trim());
+            paramList3.Add("ADDED_BY", Session["USERID"].ToString());
+
+            string[] queryArray = new String[3];
+            Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[3];
+
+            queryArray[0] = sbInsertQuery1.ToString();
+            queryArray[1] = sbInsertQuery2.ToString();
+            queryArray[2] = sbInsertQuery3.ToString();
+
+            paramListArray[0] = paramList1;
+            paramListArray[1] = paramList2;
+            paramListArray[2] = paramList3;
+            int recordsAffected = 0;
+           recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+           if (recordsAffected > 0)
+           {
+               Common.Show("Item added succesfully");
+               bindSORItems(ViewState["REF_ID"].ToString(), ddJobNumber.SelectedValue);
+           }
+        }
+        else
+        {
+            ModalPopupExtenderForAssignRack.Show();
+            Common.Show(errorMsg);
+        }
+    }
+}

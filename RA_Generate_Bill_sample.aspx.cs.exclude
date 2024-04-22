@@ -1,0 +1,2465 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Collections;
+using System.Data.Common;
+using System.Data;
+using ClosedXML.Excel;
+using System.IO;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Web.UI.HtmlControls;
+
+
+public partial class RA_Generate_Bill_sample : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+
+        if (Session["ROLE"] != null && "FA".Equals(Session["ROLE"].ToString()))
+        {
+            btnGenerateAbstract.Visible = false;
+        }
+
+        if (!IsPostBack)
+        {
+            btnGenerateAbstract.Visible = false;
+
+            
+
+            if (Session["USERID"] != null && Session["ROLE"] != null)
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());
+            }
+            else
+            {
+                Response.Redirect("Login.aspx");
+            }
+        }
+    }
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("VEND".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_MASTER where C_CODE=:C_CODE order by JOB_NO");
+            paramList.Add("C_CODE", userId);
+        }
+        else if ("BE".Equals(userRole) || "AC".Equals(userRole))        
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE='Y'  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+        }
+        //Added for viewing report by Finance and Construction employees
+        else if ("FA".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_MASTER order by JOB_NO");
+
+        }
+
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+    }
+
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        if ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append("SELECT DISTINCT b.TENDER_NO||'~'||b.part_no tender_part, b.tender_no||'-'|| b.part_no || ' ( '||b.TITLE||')' description  ")
+            .Append(" FROM  RAB_TENDER_USERS a,RAB_TENDER_MASTER b ")
+              .Append(" WHERE b.JOB_NO=:JOB_NO ")
+              .Append(" AND EMPNO=:EMPNO ")
+              .Append(" AND ROLE=:ROLE ")
+              .Append(" and b.job_no=A.JOB_NO")
+             .Append(" and A.TENDER_NO=b.TENDER_NO")
+             .Append(" and A.PART_NO=b.PART_NO")
+              .Append(" ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+        }
+        else if ("VEND".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append(" SELECT DISTINCT ")
+              .Append("TENDER_NO||'~'||a.part_no tender_part, ")
+              .Append(" tender_no||'-'|| a.part_no||' ( '||A.TITLE||')'  description ")
+              .Append(" FROM RAB_TENDER_MASTER a ")
+               .Append("WHERE     JOB_NO =:JOB_NO ")
+              .Append("  AND C_CODE =:C_CODE ")
+               .Append("ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("C_CODE", Session["USERID"].ToString());
+
+        }
+        else if ("FA".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append(" Select DISTINCT TENDER_NO||'~'||a.part_no tender_part, tenderno||'-'|| a.part_no||' ( '||b.title||' '||b.title1||')' description ")
+                      .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+                     .Append(" WHERE JOB_NO=:JOB_NO ")
+                     .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+                     .Append(" and A.TENDER_NO=b.tendersrno")
+                     .Append(" ORDER BY tender_part");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+        else
+        {
+            sbQuery.Append(" Select DISTINCT TENDER_NO||'~'||a.part_no tender_part, tender_no||'-'|| a.part_no||' ( '||a.TITLE||')' description ")
+                   .Append(" FROM RAB_TENDER_MASTER a ")
+                  .Append(" WHERE JOB_NO=:JOB_NO ")
+                  .Append(" ORDER BY tender_part");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "tender_part", "description", "", "-- Select Tender Number-Part No --");
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+            bindTenders(ddJobNumber.SelectedValue);
+        }
+        else
+        {
+            Common.Show("Please select Job Number");
+        }
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        bindBillsAdded(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue);
+        trOldBills.Visible = true;
+
+        if (Session["ROLE"] != null && "FA".Equals(Session["ROLE"].ToString()))
+        {
+            btnGenerateAbstract.Visible = false;
+        }
+        else
+        {
+            btnGenerateAbstract.Visible = true;
+        }
+    }
+
+    protected void bindBillsAdded(string jobNumber, string tenderNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        string[] strArray = tenderNumber.Split('~');
+
+        sbQuery.Append("SELECT distinct TEND_SOR_ID, RUN_SL_NO,rab_get_bill_addedOn(TEND_SOR_ID,RUN_SL_NO) RUN_SL_DATE,A.RA_BLL_NO,to_char(A.RA_DATE,'dd-Mon-yyyy')  RA_DATE ")
+
+            .Append(" ,RA_FINAL_BILL_NO  , TO_CHAR (PERIOD_FROM, 'dd-Mon-yyyy') ||' To '||TO_CHAR (PERIOD_TO, 'dd-Mon-yyyy')  RA_Bill_Period ")
+
+             .Append("  FROM RAB_TENDER_BILL a ")
+            .Append("   where  upper(TEND_SOR_ID) in ")
+            // .Append("    (select distinct TEND_SOR_ID from RAB_TENDER_MASTER where job_no=:job_no and tender_no=:tender_no and part_no=:part_no)  ");
+
+
+          .Append(@"    (SELECT distinct min(a.TEND_SOR_ID)
+               FROM RAB_TENDER_MASTER a, RAB_BILL_ACTIVITY b
+              WHERE a.job_no =:job_no AND a.tender_no =:tender_no and a.PART_NO=:PART_NO
+                and A.JOB_NO=B.JOB_NO
+                    and A.TEND_SOR_ID=B.TEND_SOR_ID) and RCM_IS_FROZEN='Y'  ");
+        // .Append("   and ra_bll_no is not null ");
+        if (Session["ROLE"].Equals("VEND"))
+        {
+            sbQuery.Append(" and CONT_ID =:CONT_ID  ");
+            paramList.Add("CONT_ID", Session["USERID"].ToString());
+        }
+        sbQuery.Append("    group by TEND_SOR_ID, RUN_SL_NO ,A.RA_BLL_NO,to_char(A.RA_DATE,'dd-Mon-yyyy')    ")
+           .Append("  ,RA_FINAL_BILL_NO  , TO_CHAR (PERIOD_FROM, 'dd-Mon-yyyy')  ,TO_CHAR (PERIOD_TO, 'dd-Mon-yyyy') ")
+          .Append("    order by RUN_SL_NO desc ");
+        paramList.Add("job_no", jobNumber);
+        paramList.Add("tender_no", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+       
+        objDB.bindGridView(gvBillsAdded, sbQuery.ToString(), paramList);
+    }
+
+    //protected void gvBillsAdded_RowCommand(object sender, GridViewCommandEventArgs e)
+    //{
+    //    //try
+    //    //{
+    //    //    if (e.CommandName.Equals("Select"))
+    //    //    {
+    //    //        int RowIndex = Convert.ToInt16(e.CommandArgument.ToString());
+    //    //        gvBillsAdded.SelectedIndex = RowIndex;
+    //    //        gvBillsAdded.SelectedRow.BackColor = System.Drawing.Color.LightYellow;
+    //    //    }
+    //    //}
+    //    //catch (Exception ex)
+    //    //{
+    //    //}
+    //}
+
+    protected void gvBillsAdded_rowDatabound(object sender, GridViewRowEventArgs e)
+    {
+        //Checking the RowType of the Row  
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            HiddenField hdFinalBillNo = (e.Row.FindControl("hdFinalBillNo") as HiddenField);
+            HiddenField hdTenderSorRefID = (e.Row.FindControl("hdTenderSorRefID") as HiddenField);
+
+            LinkButton lnkbtn_mop = (e.Row.FindControl("lnkbtn_mop") as LinkButton);
+            lnkbtn_mop.Text = "MOP";
+
+            //Check if MOP generated
+            DataTable dt = new DataTable();
+            dt = getMOPStatus(hdFinalBillNo.Value);
+             //hdMOPId.Value = dt.Rows[0]["MOP_ID"].ToString();
+
+            if (dt.Rows.Count > 0 && dt.Rows[0]["RCM_IS_FROZEN"].ToString().Equals("Y"))
+            {
+                lnkbtn_mop.Visible = true;
+            }
+            else
+            {
+                lnkbtn_mop.Visible = false;
+            }
+
+            //check if bill is approved by RCM than only allow contractor to generate Abstract in EXCEL/PDF else do not allow Email dated 04-Feb-2021 from Azeem
+            HiddenField hdBillRunningSRNo = (HiddenField)e.Row.FindControl("hdBillRunningSRNo");
+            LinkButton lnkbtn_Abstract = (LinkButton)e.Row.FindControl("lnkbtn_Abstract");
+            LinkButton lnkbtn_PDFAbstract = (LinkButton)e.Row.FindControl("lnkbtn_PDFAbstract");
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            paramList.Add("RA_FINAL_BILL_NO", hdFinalBillNo.Value);
+            paramList.Add("RUN_SL_NO", hdBillRunningSRNo.Value);
+            paramList.Add("TEND_SOR_ID", hdTenderSorRefID.Value);
+            if (Session["ROLE"].Equals("VEND") && !objDB.executeScalar("select distinct status from rab_tender_bill a where  A.RA_FINAL_BILL_NO=:RA_FINAL_BILL_NO and A.RUN_SL_NO=:RUN_SL_NO and A.TEND_SOR_ID=:TEND_SOR_ID and RCM_IS_FROZEN='Y'", paramList).Equals("ACCEPTED BY RCM"))
+            {
+                lnkbtn_Abstract.Visible = false;
+                lnkbtn_PDFAbstract.Visible = false;
+            }
+
+        }
+    }
+
+    protected DataTable getMOPStatus(string RABillNo)
+    {
+        DataTable dt = new DataTable();
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append(@"select MOP_ID, BE_IS_FROZEN, BE_EMPNO,  
+                        AC_IS_FROZEN, AC_EMPNO, RCM_IS_FROZEN, RCM_EMPNO ,VENDOR_FROZEN,
+                        to_char(ACTUAL_COMPLETION_DT,'dd-Mon-yyyy') ACTUAL_COMPLETION_DT,
+                        EXTENSION_PERIOD,
+                        PERCENT_PROGRESS  
+                        from RAB_MOP_BILL_ACTION
+                        where MOP_ID =  (select distinct id from RAB_MOP_BILL_DTL
+                        where JOB_NO=:JOB_NO
+                        and  TENDER_NO=:TENDER_NO
+                        and  RA_BILL_NO=:RA_BILL_NO
+                        and  PART_NO=:PART_NO
+                        )");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        
+        paramList.Add("JOB_NO", ddJobNumber.SelectedValue.ToUpper());
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("PART_NO", strArray[1]);
+        paramList.Add("RA_BILL_NO", RABillNo);
+        dt = objDB.bindDataTable(sbQuery.ToString(), paramList);
+        return dt;
+    }
+
+    protected void lnkbtn_mop_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            GridViewRow clickedRow = ((LinkButton)sender).NamingContainer as GridViewRow;
+            HiddenField hdFinalBillNo = (HiddenField)clickedRow.FindControl("hdFinalBillNo");
+
+            //Check if MOP generated
+            DataTable dt = new DataTable();
+            dt = getMOPStatus(hdFinalBillNo.Value);
+            if (dt.Rows.Count > 0)
+            {
+                string mopID = dt.Rows[0]["MOP_ID"].ToString();
+                string[] strArray = ddTenderNo.SelectedValue.Split('~');
+                string[] paramDetail = { "T_JOBNO", ddJobNumber.SelectedValue, "T_MOP_ID", mopID, "T_JOB_NO", ddJobNumber.SelectedValue, "T_TENDER_NO", strArray[0], "T_PART_NO", strArray[1], "T_BILL_NO", hdFinalBillNo.Value };
+
+                if (ddMOPType.SelectedValue.Equals("EPCM"))
+                {
+                    GenerateReport.printReport("MOP", "pdf", "N", "APPL", paramDetail);
+                }
+                else if (ddMOPType.SelectedValue.Equals("LSTK"))
+                {
+                    GenerateReport.printReport("MOP_LSTK", "pdf", "N", "APPL", paramDetail);
+                }
+                //GenerateReport.print("MOP", "pdf", "Y", "APPL", paramDetail);
+                
+            }
+        }
+        catch (Exception ex) { }
+    }
+
+
+    // To do change it for extracting Excel format
+
+    public void gvBillsAdded_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        GridViewRow row = gvBillsAdded.SelectedRow;
+        HiddenField hdTenderSorRefID = new HiddenField();
+        hdTenderSorRefID = (HiddenField)row.FindControl("hdTenderSorRefID");
+        string tenderSORreferenceId = hdTenderSorRefID.Value;
+
+        HiddenField hdBillRunningSRNo = new HiddenField();
+        hdBillRunningSRNo = (HiddenField)row.FindControl("hdBillRunningSRNo");
+
+        HiddenField hdBillingDate = new HiddenField();
+        hdBillingDate = (HiddenField)row.FindControl("hdBillingDate");
+
+        HiddenField hdRABillNo = new HiddenField();
+        hdRABillNo = (HiddenField)row.FindControl("hdRABillNo");
+
+        HiddenField hdRABillDate = new HiddenField();
+        hdRABillDate = (HiddenField)row.FindControl("hdRABillDate");
+
+
+        HiddenField hdFinalBillNo = new HiddenField();
+        hdFinalBillNo = (HiddenField)row.FindControl("hdFinalBillNo");
+
+        HiddenField hdBillPeriod = new HiddenField();
+        hdBillPeriod = (HiddenField)row.FindControl("hdBillPeriod");
+
+
+        ViewState["TENS_SOR_REF_ID"] = tenderSORreferenceId;
+        ViewState["RUN_SL_NO"] = hdBillRunningSRNo.Value;
+        ViewState["RUN_SL_DATE"] = hdBillingDate.Value;
+        ViewState["RA_BLL_NO"] = hdRABillNo.Value;
+        ViewState["RA_DATE"] = hdRABillDate.Value;
+
+        ViewState["RA_FINAL_BILL_NO"] = hdFinalBillNo.Value;
+        ViewState["RA_Bill_Period"] = hdBillPeriod.Value;
+
+
+        //Session["RA_BLL_NO"] = hdRABillNo.Value;
+        //Session["RA_DATE"] = hdRABillDate.Value;
+
+       // Session["RA_BLL_NO"] = hdFinalBillNo.Value;
+        Session["RA_BLL_NO"] = hdRABillNo.Value;
+        Session["RA_DATE"] = hdBillPeriod.Value;
+
+        bindSORItems(tenderSORreferenceId, ddJobNumber.SelectedValue, hdBillRunningSRNo.Value);
+        trItemsDetails.Visible = true;
+        pnlSORItems.Visible = true;
+
+        DataTable dtfinalData = new DataTable();
+
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("SOR Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR Rate", typeof(string));
+        dtfinalData.Columns.Add("Part Rate", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Date", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto. Date", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select distinct ref_id,TEND_SOR_ID,UNIT_NO,SOR_NO,SEQ_NO, ")
+            .Append(" short_desc, long_desc,sort_no,RA_BLL_NO,RA_DATE,ho_qty,ITEM_RATE,UOM ")
+            .Append("  from  ")
+        .Append("  vw_ra_bill_item_header  ")
+        .Append(" where  RA_BLL_NO=:RA_BLL_NO ")
+        .Append(" order by SOR_NO,SORT_NO");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+        // dtfinalData.Rows.Add("SOR S. No", "SOR Item No.", "Item", "UOM", "SOR Quantity", "SOR Rate", "Part Rate", "Up to Prev. Bill", "Since Prev. Bill", "Up to Date", "Upto Prev. Bill", "Since Prev. Bill", "Upto. Date", "Remarks");
+        //Binding Child values and merging it with main datatable
+        int i = 0;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string UOM = "";
+            string SORQty = "";
+            string itemRate = "";
+            string tenderSORId = "";
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SOR_NO"].ToString();
+            longDesc = dr["short_desc"].ToString();
+            UOM = dr["uom"].ToString();
+            SORQty = dr["ho_qty"].ToString();
+            itemRate = dr["ITEM_RATE"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+
+            dtfinalData.Rows.Add(++i, seqNumber, longDesc, "", "", "", "", "", "", "", "", "", "", "");
+
+            StringBuilder sbQueryDetail = new StringBuilder();
+            sbQueryDetail.Append(" select distinct TEND_SOR_ID,REF_ID,SEQ_NO,ACTIVITY_DESC , ")
+                  .Append("  ACTIVITY_PERCENT,IS_BREAKABLE,ACTIVITY_ID ,")
+                //.Append(" ((ITEM_RATE * HO_QTY)*ACTIVITY_PERCENT/100)  activityAmt,  ")
+                //.Append("  (HO_QTY*ACTIVITY_PERCENT/100) activityQty ,")
+                 .Append(" nvl(AC_IS_FROZEN,'N') frozen ,CONT_IS_FROZEN,CONT_QTY,BENGG_IS_FROZEN,AC_IS_FROZEN,RCM_IS_FROZEN, ")
+                .Append("   BENGG_QTY,AC_QTY,nvl(RCM_QTY,0) RCM_QTY,RUN_SL_NO, RA_FINAL_BILL_NO  , PERIOD_FROM , PERIOD_TO ")
+                 .Append("  from VW_RA_BILL_ITEMs_detail  ")
+                 .Append("  where REF_ID=:REF_ID ")
+                 .Append(" and SEQ_NO=:SEQ_NO ")
+                 .Append(" and RA_BLL_NO=:RA_BLL_NO ")
+                 .Append(" and tend_sor_id=:tend_sor_id ")
+                 .Append(" order by REF_ID,SEQ_NO ");
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            paramListDetail.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+            paramListDetail.Add("tend_sor_id", tenderSORId);
+
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+
+            //Binding Child values and merging it with main datatable
+            foreach (DataRow drChild in dtItemsBilling.Rows)
+            {
+                string uptoPreviousBillQty = "0";
+                //uptoPreviousBillQty = getTotalActivityCompleted(refId, seqNumber, tenderSORId);
+                uptoPreviousBillQty = getTotalActivityCompleted(refId, seqNumber, tenderSORId, ViewState["RUN_SL_NO"].ToString());
+                string sincePreviousBillQty = "0";
+                sincePreviousBillQty = drChild["RCM_QTY"].ToString();
+                string uptoPreviousBillAmt = "0";
+                if (itemRate.Length > 0)
+                {
+                    uptoPreviousBillAmt = (float.Parse(uptoPreviousBillQty) * float.Parse(itemRate) * (float.Parse(drChild["ACTIVITY_PERCENT"].ToString())) / 100).ToString();
+                }
+                string uptoPreviousBillTotalQty = "0";
+                uptoPreviousBillTotalQty = (float.Parse(uptoPreviousBillQty) + float.Parse(sincePreviousBillQty)).ToString();
+
+                string sincePreviousBillAmt = "0";
+                if (itemRate.Length > 0)
+                {
+                    sincePreviousBillAmt = (float.Parse(sincePreviousBillQty) * float.Parse(itemRate) * (float.Parse(drChild["ACTIVITY_PERCENT"].ToString())) / 100).ToString();
+                }
+                string sincePreviousBillTotalAmt = "0";
+
+                sincePreviousBillTotalAmt = (float.Parse(uptoPreviousBillAmt) + float.Parse(sincePreviousBillAmt)).ToString();
+
+                //  dtfinalData.Rows.Add("", "", drChild["ACTIVITY_DESC"].ToString(), UOM, SORQty, itemRate, drChild["ACTIVITY_PERCENT"].ToString(), "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", "", drChild["ACTIVITY_DESC"].ToString(), UOM, SORQty, itemRate, drChild["ACTIVITY_PERCENT"].ToString(), uptoPreviousBillQty, sincePreviousBillQty, uptoPreviousBillTotalQty, uptoPreviousBillAmt, sincePreviousBillAmt, sincePreviousBillTotalAmt, "");
+            }
+        }
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["RABILL"] = dtfinalData;
+        Session["RABILL_Abstract"] = null;
+        //ViewState["RABILL"] = dtfinalData;
+
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+        paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+        Response.Redirect("RA_Bill_Excel.aspx");
+        // ExportToExcelXML();
+    }
+
+    private void ExportToExcelXML()
+    {
+        string fileName = "";
+        fileName = ViewState["RA_BLL_NO"].ToString() + "-" + System.DateTime.Now.ToString() + ".xlsx";
+        //fileName = Server.MapPath("\\ra_billing\\") + ViewState["RA_BLL_NO"].ToString() + ".xlsx";
+        DataTable dt = new DataTable();
+        if (ViewState["RABILL"] != null)
+        {
+            dt = (DataTable)ViewState["RABILL"];
+        }
+
+        using (XLWorkbook wb = new XLWorkbook())
+        {
+            wb.Worksheets.Add(dt, "RABill");
+
+            Response.Clear();
+            Response.Buffer = true;
+            Response.Charset = "";
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            //  Response.AddHeader("content-disposition", "attachment;filename=Export.xlsx"); //File name can be changed here
+            Response.AddHeader("content-disposition", "attachment;filename=" + fileName); //File name can be changed here
+            // Response.ContentEncoding = Encoding.UTF8;
+            using (MemoryStream MyMemoryStream = new MemoryStream())
+            {
+                wb.SaveAs(MyMemoryStream);
+                MyMemoryStream.WriteTo(Response.OutputStream);
+                Response.Flush();
+                //Response.SuppressContent = true;
+                Response.End();
+            }
+        }
+    }
+
+    private void ExportToExcel(DataTable dt)
+    {
+        if (dt.Rows.Count > 0)
+        {
+            string filename = "RA_Bill.xls";
+            System.IO.StringWriter tw = new System.IO.StringWriter();
+            System.Web.UI.HtmlTextWriter hw = new System.Web.UI.HtmlTextWriter(tw);
+
+            DataGrid dgGrid = new DataGrid();
+            dgGrid.DataSource = dt;
+            dgGrid.DataBind();
+
+            //Get the HTML for the control.
+            dgGrid.RenderControl(hw);
+            //Write the HTML back to the browser.
+            //Response.ContentType = application/vnd.ms-excel;
+            Response.ContentType = "application/vnd.ms-excel";
+            Response.AppendHeader("Content-Disposition", "attachment; filename=" + filename + "");
+            this.EnableViewState = false;
+            Response.Write(tw.ToString());
+            Response.End();
+            Response.Flush();
+        }
+    }
+
+    protected void generateColumnHeader(DataRow dtRow)
+    {
+        DataColumn dcSNo = new DataColumn();
+        DataColumn dcSeqNo = new DataColumn();
+        DataColumn dcItemDesc = new DataColumn();
+        DataColumn dcUOM = new DataColumn();
+        DataColumn dcSORQty = new DataColumn();
+        DataColumn dcSORRate = new DataColumn();
+        DataColumn dcPercent = new DataColumn();
+        DataColumn dcQtyUptoPrevBill = new DataColumn();
+        DataColumn dcQtySincePrevBill = new DataColumn();
+        DataColumn dcQtyUptoDate = new DataColumn();
+        DataColumn dcAmtUptoPrevBill = new DataColumn();
+        DataColumn dcAmtSincePrevBill = new DataColumn();
+        DataColumn dcAmtUptoDate = new DataColumn();
+        DataColumn dtRemarks = new DataColumn();
+        dcSNo.DefaultValue = "S No.";
+        dcSeqNo.DefaultValue = "SOR Item No.";
+        dcItemDesc.DefaultValue = "Items";
+        dcUOM.DefaultValue = "";
+        dcSORQty.DefaultValue = "";
+        dcSORRate.DefaultValue = "";
+        dcPercent.DefaultValue = "";
+        dcQtyUptoPrevBill.DefaultValue = "";
+        dcQtySincePrevBill.DefaultValue = "";
+        dcQtyUptoDate.DefaultValue = "";
+        dcAmtUptoPrevBill.DefaultValue = "";
+        dcAmtSincePrevBill.DefaultValue = "";
+        dcAmtUptoDate.DefaultValue = "";
+        dtRemarks.DefaultValue = "";
+        dtRow[0] = dcSNo;
+        dtRow[1] = dcSeqNo;
+        dtRow[2] = dcItemDesc;
+        dtRow[3] = "";
+        dtRow[4] = "";
+        dtRow[5] = "";
+        dtRow[6] = "";
+        dtRow[7] = "";
+        dtRow[8] = "";
+        dtRow[9] = "";
+        dtRow[10] = "";
+        dtRow[11] = "";
+        dtRow[12] = "";
+        dtRow[13] = "";
+        // return dtRow;
+    }
+
+    protected void bindSORItems(string tenderSORreferenceId, string jobNumber, string runningSerialNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append(" SELECT distinct REF_ID,  ")
+         .Append(" SEQ_NO,  ")
+         .Append(" ITEM_RATE,  ")
+         .Append(" UOM,  SORT_NO,   ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY,")
+         .Append(" ACT_PROG, FLAG_HO, sdesc, ldesc, TEND_SOR_ID  ")
+         .Append(" from  ")
+ .Append(" (        ")
+  .Append(" (   ")
+  .Append(" SELECT a.REF_ID, a.SEQ_NO, nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE, a.UOM, a.SORT_NO, ACT_DESC,  ")
+         .Append(" ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY, ACT_PROG, FLAG_HO,  ")
+         .Append(" a.sorno sdesc,TO_CHAR (a.ldesc) ldesc, C.TEND_SOR_ID  ")
+    .Append(" FROM RAB_ITEM_BREAKUP a, icms_cba.cba_tender b, RAB_TENDER_MASTER c  ")
+   .Append(" WHERE     A.SEQ_NO = B.SEQNO  ")
+         .Append(" AND b.JOB =:JOBNO  ")
+         .Append(" AND b.jtn =:TENDER_NO  ")
+         .Append(" AND B.SORNO = A.SORNO  ")
+         .Append(" AND C.SOR_NO = A.SORNO  ")
+         .Append(" AND C.REF_ID = A.REF_ID  ")
+         .Append(" and flag_ho='Y'  ");
+
+        //if ((Session["ROLE"].Equals("VEND") && rbUpdateBill.Checked) || (!Session["ROLE"].Equals("VEND")))
+        //{
+        sbQuery.Append(" and A.SEQ_NO in (select bb.seq_no from RAB_TENDER_BILL bb where bb.ref_id=a.ref_id and bb.RUN_SL_NO=:RUN_SL_NO and BB.TEND_SOR_ID=:TEND_SOR_ID and bb.SEQ_NO=a.SEQ_NO) ");
+        paramList.Add("TEND_SOR_ID", tenderSORreferenceId.ToUpper());
+        paramList.Add("RUN_SL_NO", runningSerialNumber);
+        //}
+        sbQuery.Append("  )  ")
+       .Append("   union  ")
+        .Append("  (  ")
+        .Append("  SELECT a.REF_ID,a.SEQ_NO, nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE, a.UOM, a.SORT_NO, ACT_DESC,ACT_PERCENT,  ")
+         .Append(" ACT_SEQ, ADDED_ON, SITE_QTY HO_QTY,  ACT_PROG, FLAG_HO, a.sorno sdesc,  ")
+         .Append(" TO_CHAR (ACT_DESC) ldesc, C.TEND_SOR_ID  ")
+    .Append(" FROM RAB_ITEM_BREAKUP a, RAB_TENDER_MASTER c  ")
+   .Append(" WHERE     C.SOR_NO = A.SORNO  ")
+         .Append(" AND C.REF_ID = A.REF_ID  ")
+         .Append(" and flag_ho='N'  ")
+        .Append(" and C.REF_ID in (select distinct ref_id from RAB_TENDER_MASTER where JOB_NO=:JOB_NO2 and TENDER_NO=:TENDER_NO2)");
+        //if ((Session["ROLE"].Equals("VEND") && rbUpdateBill.Checked) || (!Session["ROLE"].Equals("VEND")))
+        //{
+        sbQuery.Append(" and A.SEQ_NO in (select bb.seq_no from RAB_TENDER_BILL bb where bb.ref_id=a.ref_id and bb.RUN_SL_NO=:RUN_SL_NO2 and BB.TEND_SOR_ID=:TEND_SOR_ID2 and bb.SEQ_NO=a.SEQ_NO) ");
+        paramList.Add("TEND_SOR_ID2", tenderSORreferenceId.ToUpper());
+        paramList.Add("RUN_SL_NO2", runningSerialNumber);
+        //}
+        sbQuery.Append(" )  ")
+        .Append(" )  ")
+            .Append(" ORDER BY  sdesc,SORT_NO,SEQ_NO  ");
+        //.Append(sortColumn + sortOrder);
+        paramList.Add("JOBNO", jobNumber);
+        paramList.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList.Add("JOB_NO2", jobNumber);
+        paramList.Add("TENDER_NO2", ddTenderNo.SelectedValue);
+        //  paramList.Add("REF_ID", tenderSORreferenceId);        
+
+        objDB.bindGridView(gvSORItems, sbQuery.ToString(), paramList);
+
+    }
+
+    protected void gvSORItems_RowDataBound(object sender, GridViewRowEventArgs e)
+    {
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            HiddenField hdReferenceID = new HiddenField();
+            hdReferenceID = (HiddenField)e.Row.FindControl("hdReferenceID");
+            string referenceId = hdReferenceID.Value;
+            HiddenField hdSequenceNo = new HiddenField();
+            hdSequenceNo = (HiddenField)e.Row.FindControl("hdSequenceNo");
+            string sequenceNo = hdSequenceNo.Value;
+
+            HiddenField hdItemRate = new HiddenField();
+            hdItemRate = (HiddenField)e.Row.FindControl("hdItemRate");
+            string itemRate = hdItemRate.Value;
+
+            HiddenField hdItemQuantity = new HiddenField();
+            hdItemQuantity = (HiddenField)e.Row.FindControl("hdItemQuantity");
+            string itemQty = hdItemQuantity.Value;
+
+            HiddenField hdSORTenderId = new HiddenField();
+            hdSORTenderId = (HiddenField)e.Row.FindControl("hdSORTenderId");
+
+            Label lblAllTotalAmount = new Label();
+            lblAllTotalAmount = (Label)e.Row.FindControl("lblAllTotalAmount");
+
+            Label lblAllTotalQty = new Label();
+            lblAllTotalQty = (Label)e.Row.FindControl("lblAllTotalQty");
+
+            if (itemRate.Length > 0)
+            {
+                lblAllTotalQty.Text = "0";
+                lblAllTotalAmount.Text = "0";
+                //string totalQty = getTotalActivityCompleted(referenceId, sequenceNo, hdSORTenderId.Value);
+                string totalQty = getTotalActivityCompleted(referenceId, sequenceNo, hdSORTenderId.Value, ViewState["RUN_SL_NO"].ToString());
+                lblAllTotalQty.Text = totalQty;
+                if (totalQty.Length > 0)
+                    lblAllTotalAmount.Text = (float.Parse(totalQty) * float.Parse(itemRate)).ToString();
+            }
+            float totalValue = 0;
+            if (itemRate.Length > 0 && itemQty.Length > 0)
+            {
+                totalValue = float.Parse(itemRate) * float.Parse(itemQty);
+            }
+
+            Button btnSplitActivity = new Button();
+            btnSplitActivity = (Button)e.Row.FindControl("btnSplitActivity");
+
+            GridView gvChildReport = e.Row.FindControl("gvSORSplits") as GridView;
+            StringBuilder query = new StringBuilder();
+
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            if ((Session["ROLE"].Equals("VEND") && ViewState["RUN_SL_NO"] != null) || (!Session["ROLE"].Equals("VEND") && ViewState["RUN_SL_NO"] != null))
+            //if ((Session["ROLE"].Equals("VEND") && rbUpdateBill.Checked && ViewState["RUN_SL_NO"] != null) || (!Session["ROLE"].Equals("VEND") && ViewState["RUN_SL_NO"] != null))
+            // if ( ViewState["RUN_SL_NO"] != null)
+            {
+                query.Append("select distinct c.TEND_SOR_ID,a.REF_ID,a.SEQ_NO,a.ACTIVITY_DESC ,  ")
+                .Append(" a.ACTIVITY_PERCENT||'%' ACTIVITY_PERCENT,a.IS_BREAKABLE,a.ACTIVITY_ID ,((nvl(b.ITEM_RATE_EDITED,b.ITEM_RATE)  * B.HO_QTY)*a.ACTIVITY_PERCENT/100)  activityAmt, ")
+                .Append(" (B.HO_QTY*a.ACTIVITY_PERCENT/100) activityQty ,nvl(C.AC_IS_FROZEN,'N') frozen ,CONT_IS_FROZEN,CONT_QTY,BENGG_IS_FROZEN,AC_IS_FROZEN,RCM_IS_FROZEN,")
+                .Append(" BENGG_QTY,AC_QTY,nvl(RCM_QTY,0) RCM_QTY,RUN_SL_NO ")
+               .Append("  from RAB_TENDER_DETAILS a,RAB_ITEM_BREAKUP b ,RAB_TENDER_BILL c ")
+               .Append("  where a.REF_ID=:REF_ID  ")
+               .Append("  and a.SEQ_NO =:SEQ_NO  ")
+              .Append("   and a.seq_no=B.SEQ_NO ")
+              .Append("   and A.REF_ID=B.REF_ID ")
+              .Append(" and C.SEQ_NO(+)=A.SEQ_NO ")
+                .Append(" and C.REF_ID(+)=A.REF_ID ")
+                .Append(" and C.ACT_SEQ(+)=A.ACTIVITY_ID ")
+                .Append(" and (BE_FROZEN= 'Y' or  AC_FROZEN='Y' or RCM_FROZEN='Y') ");
+                query.Append(" and C.RUN_SL_NO=:RUN_SL_NO ");
+                query.Append(" and Trunc (C.RUN_SL_DATe)=to_date(:RUN_SL_DATE ,'dd-Mon-yyyy')");
+                paramList.Add("RUN_SL_NO", ViewState["RUN_SL_NO"].ToString());
+                paramList.Add("RUN_SL_DATE", ViewState["RUN_SL_DATE"].ToString());
+            }
+            //else if (Session["ROLE"].Equals("VEND") && rbNewBill.Checked)
+            //{
+            //    query.Append(" select C.TEND_SOR_ID,a.REF_ID,a.SEQ_NO,a.ACTIVITY_DESC ,   ")
+            //           .Append(" a.ACTIVITY_PERCENT||'%' ACTIVITY_PERCENT,a.IS_BREAKABLE,a.ACTIVITY_ID ,((B.ITEM_RATE * B.HO_QTY)*a.ACTIVITY_PERCENT/100)  activityAmt,  ")
+            //           .Append(" (B.HO_QTY*a.ACTIVITY_PERCENT/100) activityQty ,'' frozen ,'' CONT_IS_FROZEN,'' CONT_QTY,'' BENGG_IS_FROZEN,'' AC_IS_FROZEN,'' RCM_IS_FROZEN,")
+            //    .Append(" '' BENGG_QTY,'' AC_QTY,'' RCM_QTY,'' RUN_SL_NO ")
+            //          .Append("  from RAB_TENDER_DETAILS a,RAB_ITEM_BREAKUP b ,rab_tender_master c  ")
+            //         .Append("   where a.REF_ID=:REF_ID   ")
+            //         .Append("   and a.SEQ_NO =:SEQ_NO   ")
+            //         .Append("   and a.seq_no=B.SEQ_NO  ")
+            //           .Append(" and A.REF_ID=B.REF_ID    ")
+            //           .Append(" and (BE_FROZEN= 'Y' or  AC_FROZEN='Y' or RCM_FROZEN='Y')           ")
+            //           .Append(" and C.REF_ID=B.REF_ID ")
+            //       .Append(" and C.SOR_NO=B.SORNO  ");
+
+            //}
+            query.Append("   order by IS_BREAKABLE desc");
+
+            paramList.Add("REF_ID", referenceId);
+            paramList.Add("SEQ_NO", sequenceNo);
+            objDB.bindGridView(gvChildReport, query.ToString(), paramList);
+
+            Label lblTotalAmount = new Label();
+            lblTotalAmount = (Label)e.Row.FindControl("lblTotalAmount");
+            if (!"0".Equals(totalValue.ToString()))
+                lblTotalAmount.Text = totalValue.ToString();
+            //if (rbNewBill.Checked)
+            //{
+            //    gvChildReport.Columns[6].Visible = false;
+            //    gvChildReport.Columns[7].Visible = false;
+            //    gvChildReport.Columns[8].Visible = false;
+            //    btnSubmit.Text = "Add New Bill";
+            //}
+            //else
+            //{
+            //    gvChildReport.Columns[6].Visible = true;
+            //    gvChildReport.Columns[7].Visible = true;
+            //    gvChildReport.Columns[8].Visible = true;
+            //    btnSubmit.Text = "Submit Quantity";
+            //}
+        }
+    }
+
+    //protected string getTotalActivityCompleted(string refId, string seqNo, string tenderSorId)
+    //{
+    //    string qty = "0";
+    //    StringBuilder sbQuery = new StringBuilder();
+    //    sbQuery.Append("select nvl(sum(rcm_qty),0) totalQty ")
+    //    .Append(" from rab_tender_bill a where REF_ID=:REF_ID  ")
+    //    .Append(" and SEQ_NO=:SEQ_NO and TEND_SOR_ID=:TEND_SOR_ID ")
+    //    .Append(" and act_seq in ")
+    //    .Append(" (select activity_id from rab_tender_details ")
+    //    .Append(" where REF_ID=a.ref_id    and SEQ_NO=a.SEQ_NO) ")
+    //    .Append(" and RCM_IS_FROZEN='Y' ")
+    //    .Append("group by REF_ID, SEQ_NO, TEND_SOR_ID");
+    //    Dictionary<string, string> paramList = new Dictionary<string, string>();
+    //    paramList.Add("REF_ID", refId);
+    //    paramList.Add("SEQ_NO", seqNo);
+    //    paramList.Add("TEND_SOR_ID", tenderSorId);
+
+    //    qty = objDB.executeScalar(sbQuery.ToString(), paramList);
+
+    //    if (qty.Length == 0)
+    //    {
+    //        qty = "0";
+    //    }
+    //    return qty;
+    //}
+
+    protected void gvSORSplits_RowDataBound(object sender, GridViewRowEventArgs e)
+    {
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            HiddenField hdChildReferenceID = new HiddenField();
+            hdChildReferenceID = (HiddenField)e.Row.FindControl("hdChildReferenceID");
+            string referenceId = hdChildReferenceID.Value;
+            HiddenField hdChildSequenceNo = new HiddenField();
+            hdChildSequenceNo = (HiddenField)e.Row.FindControl("hdChildSequenceNo");
+            string sequenceNo = hdChildSequenceNo.Value;
+
+            HiddenField hdActivityPercent = new HiddenField();
+            hdActivityPercent = (HiddenField)e.Row.FindControl("hdActivityPercent");
+            string activityPercent = hdActivityPercent.Value;
+
+            HiddenField hdIsBreakable = new HiddenField();
+            hdIsBreakable = (HiddenField)e.Row.FindControl("hdIsBreakable");
+            string isBreakable = hdIsBreakable.Value;
+
+            HiddenField hdContractorFrozen = new HiddenField();
+            hdContractorFrozen = (HiddenField)e.Row.FindControl("hdContractorFrozen");
+            string ContractorFrozen = hdContractorFrozen.Value;
+
+            HiddenField hdVendorQty = new HiddenField();
+            hdVendorQty = (HiddenField)e.Row.FindControl("hdVendorQty");
+            string vendorQty = hdVendorQty.Value;
+
+            HiddenField hdBEFrozen = new HiddenField();
+            hdBEFrozen = (HiddenField)e.Row.FindControl("hdBEFrozen");
+
+            HiddenField hdACFrozen = new HiddenField();
+            hdACFrozen = (HiddenField)e.Row.FindControl("hdACFrozen");
+
+            HiddenField hdRCMFrozen = new HiddenField();
+            hdRCMFrozen = (HiddenField)e.Row.FindControl("hdRCMFrozen");
+
+            HiddenField hdRunSrNo = new HiddenField();
+            hdRunSrNo = (HiddenField)e.Row.FindControl("hdRunSrNo");
+
+            Label lblVendQuantity = new Label();
+            lblVendQuantity = (Label)e.Row.FindControl("lblVendQuantity");
+
+            Label lblBEReject = new Label();
+            lblBEReject = (Label)e.Row.FindControl("lblBEReject");
+
+            Label lblACFrozen = new Label();
+            lblACFrozen = (Label)e.Row.FindControl("lblACFrozen");
+
+            Label lblRCMFrozen = new Label();
+            lblRCMFrozen = (Label)e.Row.FindControl("lblRCMFrozen");
+
+            Label lblBEQuantity = new Label();
+            lblBEQuantity = (Label)e.Row.FindControl("lblBEQuantity");
+
+            Label lblACQuantity = new Label();
+            lblACQuantity = (Label)e.Row.FindControl("lblACQuantity");
+
+            Label lblRCMQuantity = new Label();
+            lblRCMQuantity = (Label)e.Row.FindControl("lblRCMQuantity");
+
+            Button btnChildSplitActivity = new Button();
+            btnChildSplitActivity = (Button)e.Row.FindControl("btnChildSplitActivity");
+        }
+    }
+
+    protected void btnGenerateAbstract_Click(object sender, EventArgs e)
+    {
+        if ("".Equals(ddJobNumber.SelectedValue) && "".Equals(ddTenderNo.SelectedValue))
+        {
+            Common.Show("Error: Please select Job No and Tender No.");
+        }
+        else
+        {
+            //generateBill(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue);
+
+            generate_Excess_Saving(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue);
+        }
+    }
+
+    protected void gvBillsAdded_RowCommand(object sender, GridViewCommandEventArgs e)
+    {
+        try
+        {
+            LinkButton senderBtn = (LinkButton)e.CommandSource;
+            GridViewRow row = (GridViewRow)senderBtn.NamingContainer;
+            GridView grid = (GridView)row.NamingContainer;
+            Label lbl_RA_bill_number = (Label)row.FindControl("lblRA_bill_no");
+
+            HiddenField hdBillRunningSRNo = (HiddenField)row.FindControl("hdBillRunningSRNo");
+            HiddenField hdBillPeriod = (HiddenField)row.FindControl("hdBillPeriod");
+            HiddenField hdFinalBillNo = (HiddenField)row.FindControl("hdFinalBillNo");
+            
+
+           // Session["RABILL"] = hdBillRunningSRNo.Value;
+            Session["RABILL"] = hdFinalBillNo.Value;
+            Session["BillPeriod"] = hdBillPeriod.Value;
+            if (e.CommandName == "M_SHEET")
+            {
+                //if (string.IsNullOrEmpty(lbl_RA_bill_number.Text) == false)
+                //{
+                //    Save_Measurement_sheet(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value);
+                //}
+                Save_Measurement_sheet(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value);
+            }
+            else if (e.CommandName == "Abstract")
+            {
+                //if (string.IsNullOrEmpty(lbl_RA_bill_number.Text) == false)
+                //{
+                //    generate_Abstract(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value,"EXCEL");
+                //}
+                generate_Abstract(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value, "EXCEL");
+            }
+            else if (e.CommandName == "PDFAbstract")
+            {
+                //if (string.IsNullOrEmpty(lbl_RA_bill_number.Text) == false)
+                //{
+
+                //    generate_Abstract(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value,"PDF");
+                //}
+                generate_Abstract(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value, "PDF");
+            }
+            else if (e.CommandName == "MoP")
+            {
+                if (string.IsNullOrEmpty(lbl_RA_bill_number.Text) == false)
+                {
+                    generate_MOP(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue, lbl_RA_bill_number.Text.Trim(), hdBillRunningSRNo.Value);
+                }
+            }
+            //generateBill();
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    protected void generate_Excess_Saving(string jobNumber, string tenderNo)
+    {
+        string percentageRebate = getPercentageRebate(jobNumber, tenderNo);
+        DataTable dtfinalData = new DataTable();
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("Percentage", typeof(string));
+        dtfinalData.Columns.Add("SOR Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR Rate", typeof(string));
+        dtfinalData.Columns.Add("SOR_Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR_Amount", typeof(string));
+        dtfinalData.Columns.Add("Exec_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Exec_Amount", typeof(string));
+        dtfinalData.Columns.Add("Excess_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Excess_Amount", typeof(string));
+        dtfinalData.Columns.Add("Saving_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Saving_Amount", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append(@" SELECT B.REF_ID,
+                                 B.TEND_SOR_ID,
+                                 A.SEQ_NO,A.SORNO,
+                                 NVL (A.LDESC, act_desc) act_desc, A.FLAG_HO
+                            FROM RAB_TENDER_MASTER B, RAB_ITEM_BREAKUP A
+                           WHERE     B.JOB_NO = :JOB_NO
+                                 AND B.TENDER_NO = :TENDER_NO
+AND B.PART_NO = :part_no
+                                 AND B.REF_ID = A.REF_ID
+                        ORDER BY  A.SORT_NO,A.FLAG_HO ");
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("JOB_NO", jobNumber);
+       // paramList.Add("TENDER_NO", tenderNo);
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+
+        int parentcount = 0;
+        //Binding Child values and merging it with main datatable
+        //FLAG_HO = 'N' for standard SOR items
+        int numberOfRecords_N = dtItemsHeader.Select("FLAG_HO = 'N'").Length;
+
+        //FLAG_HO = 'Y' for Extra items
+        int numberOfRecords_Y = dtItemsHeader.Select("FLAG_HO = 'Y'").Length;
+        decimal Total_SOR_amt = 0;
+        decimal Total_Executed_Amt = 0;
+        decimal Total_Saving_Amt = 0;
+        decimal Total_Excess_Amt = 0;
+
+        decimal Rebate_SOR_amt = 0;
+        decimal Rebate_Executed_Amt = 0;
+        decimal Rebate_Saving_Amt = 0;
+        decimal Rebate_Excess_Amt = 0;
+
+        decimal Net_Total_SOR_amt = 0;
+        decimal Net_Total_Executed_Amt = 0;
+        decimal Net_Total_Saving_Amt = 0;
+        decimal Net_Total_Excess_Amt = 0;
+
+        decimal Grand_Total_SOR_amt = 0;
+        decimal Grand_Total_Executed_Amt = 0;
+        decimal Grand_Total_Saving_Amt = 0;
+        decimal Grand_Total_Excess_Amt = 0;
+
+        decimal TotalSum_soritem_amt = 0;
+        decimal TotalSum_Executed_Amt = 0;
+        decimal TotalSum_Saving_Amt = 0;
+        decimal TotalSum_Excess_amt = 0;
+
+        int i = 0;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            parentcount++;
+
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string UOM = "";
+            string sor_Qty = "";
+            string itemRate = "";
+            string tenderSORId = "";
+            string shortDesc = "";
+
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SORNO"].ToString();
+            longDesc = dr["act_desc"].ToString();
+            //UOM = dr["uom"].ToString();
+            //sor_Qty = dr["sor_Qty"].ToString();
+            //sor_amount = dr["SOR_AMOUNT"].ToString();
+            //itemRate = dr["ITEM_RATE"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+
+            dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), "", "", "", "", "", "", "", "", "", "", "");
+
+            StringBuilder sbQueryDetail = new StringBuilder();
+//            sbQueryDetail.Append(@" SELECT a.ACTIVITY_DESC,b.uom,
+//                                         A.ACTIVITY_PERCENT,
+//                                         a.ACTIVITY_PERCENT || '%' ACTIVITY_PERCENT_VAL,
+//                                         a.ACTIVITY_ID,
+//                                         B.SITE_QTY SOR_QUANTITY,
+//                                         B.ITEM_RATE SOR_AMOUNT,
+//                                         ((B.ITEM_RATE * B.SITE_QTY) * a.ACTIVITY_PERCENT / 100) activityAmt,
+//                                         C.QTY Executed_Qty,
+//                                         ( (B.ITEM_RATE * C.QTY) * a.ACTIVITY_PERCENT / 100) QTYAMT
+//                                    FROM RAB_TENDER_DETAILS a,
+//                                         RAB_ITEM_BREAKUP b,
+//                                         (  SELECT REF_ID,
+//                                                   seq_no,
+//                                                   act_seq,
+//                                                   SUM (cont_qty) QTY
+//                                              FROM RAB_TENDER_BILL
+//                                          GROUP BY REF_ID, seq_no, act_seq) C
+//                                   WHERE     a.seq_no = B.SEQ_NO(+)
+//                                         AND A.REF_ID = B.REF_ID(+)
+//                                         AND A.REF_ID = C.REF_ID(+)
+//                                         AND A.seq_no = C.SEQ_NO(+)
+//                                         AND A.ACTIVITY_ID = C.act_seq(+)
+//                                         AND A.REF_ID = :REF_ID
+//                                         AND A.SEQ_NO = :SEQ_NO
+//                                ORDER BY B.SORT_NO, A.ACTIVITY_PERCENT DESC");
+
+            sbQueryDetail.Append(@" SELECT a.ACTIVITY_DESC,b.uom,
+                                         A.ACTIVITY_PERCENT,
+                                         a.ACTIVITY_PERCENT || '%' ACTIVITY_PERCENT_VAL,
+                                         a.ACTIVITY_ID,
+                                         B.SITE_QTY SOR_QUANTITY,
+                                         nvl(b.ITEM_RATE_EDITED,b.ITEM_RATE)  SOR_AMOUNT,
+                                         ((nvl(b.ITEM_RATE_EDITED,b.ITEM_RATE) * B.SITE_QTY) * a.ACTIVITY_PERCENT / 100) activityAmt,
+                                         C.QTY Executed_Qty,
+                                         ( (nvl(b.ITEM_RATE_EDITED,b.ITEM_RATE) * C.QTY) * a.ACTIVITY_PERCENT / 100) QTYAMT
+                                    FROM RAB_TENDER_DETAILS a,
+                                         RAB_ITEM_BREAKUP b,
+                                         (  SELECT REF_ID,
+                                                   seq_no,
+                                                   act_seq,
+                                                   SUM (rcm_qty) QTY
+                                              FROM RAB_TENDER_BILL where rcm_is_Frozen='Y'
+                                          GROUP BY REF_ID, seq_no, act_seq) C
+                                   WHERE     a.seq_no = B.SEQ_NO(+)
+                                         AND A.REF_ID = B.REF_ID(+)
+                                         AND A.REF_ID = C.REF_ID(+)
+                                         AND A.seq_no = C.SEQ_NO(+)
+                                         AND A.ACTIVITY_ID = C.act_seq(+)
+                                         AND A.REF_ID = :REF_ID
+                                         AND A.SEQ_NO = :SEQ_NO
+                                ORDER BY B.SORT_NO, A.ACTIVITY_PERCENT DESC");
+
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            //paramListDetail.Add("TEND_SOR_ID", tenderSORId);
+
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+            int childSequence = 0;
+            if (dtItemsBilling.Rows.Count > 0)
+            {
+                string sor_amount = "0";
+                decimal Executed_Qty = 0;
+                decimal Executed_Amt = 0;
+                decimal Excess_Qty = 0;
+                decimal Excess_Amt = 0;
+                decimal Saving_Qty = 0;
+                decimal Saving_Amt = 0;
+                //decimal sor_amount_new = 0;
+                decimal actPercent = 0;
+                foreach (DataRow drChild in dtItemsBilling.Rows)
+                {
+                    childSequence++;
+
+                    shortDesc = drChild["ACTIVITY_DESC"].ToString();
+                    UOM = drChild["uom"].ToString();
+                    sor_Qty = drChild["SOR_QUANTITY"].ToString();
+                    sor_amount = drChild["SOR_AMOUNT"].ToString();
+                    itemRate = drChild["SOR_AMOUNT"].ToString();
+                    actPercent = decimal.Parse(drChild["ACTIVITY_PERCENT"].ToString());
+
+                    if (!string.IsNullOrEmpty(drChild["SOR_AMOUNT"].ToString()))
+                    {
+                        if (actPercent > 0)
+                        {
+                            sor_amount = (decimal.Parse(sor_Qty) * decimal.Parse(itemRate) * actPercent / 100).ToString();
+                        }
+                        else
+                        {
+                            sor_amount = (decimal.Parse(sor_Qty) * decimal.Parse(itemRate)).ToString();
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(drChild["Executed_Qty"].ToString()))
+                    {
+                        Executed_Qty = decimal.Parse(drChild["Executed_Qty"].ToString());
+                        if (actPercent > 0)
+                        {
+                            Executed_Amt = Executed_Qty * decimal.Parse(itemRate) * actPercent / 100;
+                        }
+                        else
+                        {
+                            Executed_Amt = Executed_Qty * decimal.Parse(itemRate);
+                        }
+
+                        if (Executed_Amt > 0)
+                        {
+                            Executed_Amt = Math.Round(Executed_Amt, 2);
+                        }
+                        if (decimal.Parse(sor_Qty) < Executed_Qty)
+                        {
+                            Excess_Qty = Executed_Qty - decimal.Parse(sor_Qty);
+                            Excess_Amt = Executed_Amt - Math.Round(decimal.Parse(sor_amount));
+                            if (Excess_Amt > 0)
+                            {
+                                Excess_Amt = Math.Round(Excess_Amt, 2);
+                            }
+                        }
+                        else
+                        {
+                            Saving_Qty = decimal.Parse(sor_Qty) - Executed_Qty;
+                            Saving_Amt = Math.Round(decimal.Parse(sor_amount)) - Executed_Amt;
+                            if (Saving_Amt > 0)
+                            {
+                                Saving_Amt = Math.Round(Saving_Amt, 2);
+                            }
+                        }
+
+                        Total_SOR_amt += Math.Round(decimal.Parse(sor_amount), 2);
+                        Total_Executed_Amt += Math.Round(Executed_Amt, 2);
+                        Total_Saving_Amt += Math.Round(Saving_Amt, 2);
+                        Total_Excess_Amt += Math.Round(Excess_Amt, 2);
+
+                        dtfinalData.Rows.Add("", childSequence, CleanInvalidXmlChars(shortDesc), UOM, itemRate, actPercent + "%", sor_Qty, Math.Round(decimal.Parse(sor_amount)).ToString("0.00"), Executed_Qty, Executed_Amt.ToString("0.00"), Excess_Qty, Excess_Amt.ToString("0.00"), Saving_Qty, Saving_Amt.ToString("0.00"), "");
+                    }
+                    else
+                    {
+                        Total_SOR_amt += Math.Round(decimal.Parse(sor_amount), 2);
+                        dtfinalData.Rows.Add("", childSequence, CleanInvalidXmlChars(shortDesc), UOM, itemRate, actPercent + "%", sor_Qty, Math.Round(decimal.Parse(sor_amount)).ToString("0.00"), "", "", "", "", "", "", "");
+                    }
+                }
+
+                if (parentcount == numberOfRecords_N)
+                {
+                    TotalSum_soritem_amt = Math.Round(Total_SOR_amt, 2);
+                    TotalSum_Executed_Amt = Math.Round(Total_Executed_Amt, 2);
+                    TotalSum_Saving_Amt = Math.Round(Total_Saving_Amt, 2);
+                    TotalSum_Excess_amt = Math.Round(Total_Excess_Amt, 2);
+
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    dtfinalData.Rows.Add("", "", "", "", "", "Total", "", TotalSum_soritem_amt.ToString("0.00"), "", TotalSum_Executed_Amt.ToString("0.00"), "", TotalSum_Excess_amt.ToString("0.00"), "", TotalSum_Saving_Amt.ToString("0.00"), "");
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+
+                    if (!string.Equals(percentageRebate, ""))
+                    {
+                        string textNote = "";
+
+                        decimal NewPercentageValue = decimal.Parse(percentageRebate.Replace("-", ""));
+                        if (percentageRebate.Contains("-"))
+                        {
+                            textNote = "Decrease of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                        }
+                        else
+                        {
+                            textNote = "Increase of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                        }
+
+                        Rebate_SOR_amt = (TotalSum_soritem_amt * NewPercentageValue) / 100;
+                        Rebate_Executed_Amt = (TotalSum_Executed_Amt * NewPercentageValue) / 100;
+                        Rebate_Saving_Amt = (TotalSum_Saving_Amt * NewPercentageValue) / 100;
+                        Rebate_Excess_Amt = (TotalSum_Excess_amt * NewPercentageValue) / 100;
+
+                        if (percentageRebate.Contains("-"))
+                        {
+                            Net_Total_SOR_amt = TotalSum_soritem_amt - Math.Round(Rebate_SOR_amt, 2);
+                            Net_Total_Executed_Amt = TotalSum_Executed_Amt - Math.Round(Rebate_Executed_Amt, 2);
+                            Net_Total_Saving_Amt = TotalSum_Saving_Amt - Math.Round(Rebate_Saving_Amt, 2);
+                            Net_Total_Excess_Amt = TotalSum_Excess_amt - Math.Round(Rebate_Excess_Amt, 2);
+                        }
+                        else
+                        {
+                            Net_Total_SOR_amt = TotalSum_soritem_amt + Math.Round(Rebate_SOR_amt, 2);
+                            Net_Total_Executed_Amt = TotalSum_Executed_Amt + Math.Round(Rebate_Executed_Amt, 2);
+                            Net_Total_Saving_Amt = TotalSum_Saving_Amt + Math.Round(Rebate_Saving_Amt, 2);
+                            Net_Total_Excess_Amt = TotalSum_Excess_amt + Math.Round(Rebate_Excess_Amt, 2);
+                        }
+                        dtfinalData.Rows.Add("", "", "", "", "", textNote, "", Math.Round(Rebate_SOR_amt, 2).ToString("0.00"), "", Math.Round(Rebate_Executed_Amt, 2).ToString("0.00"), "", Math.Round(Rebate_Excess_Amt, 2).ToString("0.00"), "", Math.Round(Rebate_Saving_Amt, 2).ToString("0.00"), "");
+                        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                        dtfinalData.Rows.Add("", "", "", "", "", "Net Total", "", Math.Round(Net_Total_SOR_amt, 2).ToString("0.00"), "", Math.Round(Net_Total_Executed_Amt, 2).ToString("0.00"), "", Math.Round(Net_Total_Excess_Amt, 2).ToString("0.00"), "", Math.Round(Net_Total_Saving_Amt, 2).ToString("0.00"), "");
+                    }
+                    else
+                    {
+                        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    }
+                    if (numberOfRecords_Y > 0)
+                    {
+                        dtfinalData.Rows.Add("", "", "EXTRA ITEMS", "", "", "", "", "", "", "", "", "", "", "", "");
+                        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    }
+                    Total_SOR_amt = 0;
+                    Total_Executed_Amt = 0;
+                    Total_Saving_Amt = 0;
+                    Total_Excess_Amt = 0;
+                }
+            }
+        }
+
+        if (numberOfRecords_Y > 0)
+        {
+            if (!string.Equals(percentageRebate, ""))
+            {
+                Grand_Total_SOR_amt = Math.Round(Net_Total_SOR_amt, 2) + Math.Round(Total_SOR_amt, 2);
+                Grand_Total_Executed_Amt = Math.Round(Net_Total_Executed_Amt, 2) + Math.Round(Total_Executed_Amt, 2);
+                Grand_Total_Saving_Amt = Math.Round(Net_Total_Saving_Amt, 2) + Math.Round(Total_Saving_Amt, 2);
+                Grand_Total_Excess_Amt = Math.Round(Net_Total_Excess_Amt, 2) + Math.Round(Total_Excess_Amt, 2);
+            }
+            else
+            {
+                Grand_Total_SOR_amt =TotalSum_soritem_amt + Math.Round(Total_SOR_amt, 2);
+                Grand_Total_Executed_Amt = TotalSum_Executed_Amt + Math.Round(Total_Executed_Amt, 2);
+                Grand_Total_Saving_Amt = TotalSum_Saving_Amt + Math.Round(Total_Saving_Amt, 2);
+                Grand_Total_Excess_Amt = TotalSum_Excess_amt + Math.Round(Total_Excess_Amt, 2);
+            }
+
+            dtfinalData.Rows.Add("", "", "", "", "", "Extra Item Total", "", Math.Round(Total_SOR_amt, 2).ToString("0.00"), "", Math.Round(Total_Executed_Amt, 2).ToString("0.00"), "", Math.Round(Total_Excess_Amt, 2).ToString("0.00"), "", Math.Round(Total_Saving_Amt, 2).ToString("0.00"), "");
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+            dtfinalData.Rows.Add("", "", "", "", "", "Grand Total", "", Math.Round(Grand_Total_SOR_amt, 2).ToString("0.00"), "", Math.Round(Grand_Total_Executed_Amt, 2).ToString("0.00"), "", Math.Round(Grand_Total_Excess_Amt, 2).ToString("0.00"), "", Math.Round(Grand_Total_Saving_Amt, 2).ToString("0.00"), "");
+        }
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["RABILL"] = null;
+        Session["MEASUREMENT_SHEET"] = null;
+        Session["RABILL_Abstract"] = null;
+        Session["Excess_Saving_Satement"] = dtfinalData;
+         
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+       // paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList1.Add("TENDER_NO", strArray[0]);
+        paramList1.Add("part_no", strArray[1]);
+        string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+
+        //ViewState["RABILL"] = dtfinalData;
+        Response.Redirect("RA_Bill_Excel.aspx");
+        // ExportToExcelXML();
+    }
+
+    protected void generate_Excess_Saving_Old(string jobNumber, string tenderNo)
+    {
+        DataTable dtfinalData = new DataTable();
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("Percentage", typeof(string));
+        dtfinalData.Columns.Add("SOR Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR Rate", typeof(string));
+        dtfinalData.Columns.Add("SOR_Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR_Amount", typeof(string));
+        dtfinalData.Columns.Add("Exec_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Exec_Amount", typeof(string));
+        dtfinalData.Columns.Add("Excess_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Excess_Amount", typeof(string));
+        dtfinalData.Columns.Add("Saving_Quantity", typeof(string));
+        dtfinalData.Columns.Add("Saving_Amount", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append(@"SELECT DISTINCT  
+                            b.REF_ID,  
+                            SEQ_NO,  
+                            ra_get_seq_desc (SEQ_NO, SORNO) act_desc,  
+                            ITEM_RATE,  
+                            UOM,  
+                            SORT_NO,  
+                            ACT_PERCENT,  
+                            ACT_SEQ,  
+                            ADDED_ON,  
+                            HO_QTY sor_Qty,  
+                            SITE_QTY,  
+                            CASE  
+                               WHEN (HO_QTY > 0 AND LENGTH (ITEM_RATE) > 0)  
+                               THEN  
+                                  NVL (HO_QTY, 0) * ITEM_RATE  
+                               ELSE  
+                                  NVL (HO_QTY, 0) * ITEM_RATE * ACT_PERCENT  
+                            END  
+                               SOR_AMOUNT,  
+                            FLAG_HO,  
+                            SORNO,  
+                            BB.TEND_SOR_ID  
+                       FROM RAB_ITEM_BREAKUP b, RAB_TENDER_MASTER bb  
+                      WHERE     b.ref_id IN  
+                                   (SELECT ref_id  
+                                      FROM rab_tender_master a  
+                                     WHERE A.JOB_NO = :JOB_NO AND A.TENDER_NO = :TENDER_NO AND A.PART_NO = :part_no)  
+                            AND B.REF_ID = BB.REF_ID  
+                   ORDER BY b.SEQ_NO, b.SORT_NO");
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("JOB_NO", jobNumber);
+      //  paramList.Add("TENDER_NO", tenderNo);
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+
+        //Binding Child values and merging it with main datatable
+        int i = 0;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string UOM = "";
+            string sor_amount = "";
+            string sor_Qty = "";
+            string itemRate = "";
+            string tenderSORId = "";
+            string actPercent = "";
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SORNO"].ToString();
+            longDesc = dr["act_desc"].ToString();
+            UOM = dr["uom"].ToString();
+            sor_Qty = dr["sor_Qty"].ToString();
+            sor_amount = dr["SOR_AMOUNT"].ToString();
+            itemRate = dr["ITEM_RATE"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+            if (sor_Qty.Length > 0 && itemRate.Length > 0)
+            {
+                actPercent = "100%";
+            }
+            else
+            {
+                actPercent = "";
+            }
+            StringBuilder sbQueryDetail = new StringBuilder();
+            sbQueryDetail.Append(@"SELECT DISTINCT TEND_SOR_ID,
+                                          REF_ID,
+                                          SEQ_NO,
+                                          SUM (NVL (RCM_QTY, 0)) Executed_Qty
+                            FROM VW_RA_BILL_ITEMs_detail
+                           WHERE REF_ID = :REF_ID AND SEQ_NO = :SEQ_NO AND TEND_SOR_ID = :TEND_SOR_ID
+                        GROUP BY TEND_SOR_ID, REF_ID, SEQ_NO");
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            paramListDetail.Add("TEND_SOR_ID", tenderSORId);
+
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+            decimal Executed_Qty = 0;
+            decimal Executed_Amt = 0;
+
+            decimal Excess_Qty = 0;
+            decimal Excess_Amt = 0;
+            decimal Saving_Qty = 0;
+            decimal Saving_Amt = 0;
+            decimal sor_amount_new = 0;
+
+            foreach (DataRow drChild in dtItemsBilling.Rows)
+            {
+                if (sor_amount_new > 0)
+                {
+                    sor_amount_new = Math.Round(decimal.Parse(sor_amount), 2);
+                }
+                else
+                {
+                    sor_amount_new = decimal.Parse(sor_amount);
+                }
+
+                Executed_Qty = decimal.Parse(drChild["Executed_Qty"].ToString());
+                string actPercent_result = Regex.Replace(actPercent, @"[^0-9a-zA-Z]+", " ");
+                Executed_Amt = Executed_Qty * decimal.Parse(itemRate) * decimal.Parse(actPercent_result) / 100;
+                if (Executed_Amt > 0)
+                {
+                    Executed_Amt = Math.Round(Executed_Amt, 2);
+                }
+                if (decimal.Parse(sor_Qty) < Executed_Qty)
+                {
+                    Excess_Qty = Executed_Qty - decimal.Parse(sor_Qty);
+                    Excess_Amt = Executed_Amt - sor_amount_new;
+                    if (Excess_Amt > 0)
+                    {
+                        Excess_Amt = Math.Round(Excess_Amt, 2);
+                    }
+                }
+                else
+                {
+                    Saving_Qty = decimal.Parse(sor_Qty) - Executed_Qty;
+                    Saving_Amt = sor_amount_new - Executed_Amt;
+                    if (Saving_Amt > 0)
+                    {
+                        Saving_Amt = Math.Round(Saving_Amt, 2);
+                    }
+                }
+            }
+            if (dtItemsBilling.Rows.Count > 0)
+            {
+                dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), UOM, itemRate, actPercent, sor_Qty, sor_amount_new.ToString("0.00"), Executed_Qty, Executed_Amt.ToString("0.00"), Excess_Qty, Excess_Amt.ToString("0.00"), Saving_Qty, Saving_Amt.ToString("0.00"), "");
+            }
+            else
+            {
+                dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), UOM, itemRate, actPercent, sor_Qty, sor_amount, "", "", "", "", "");
+            }
+        }
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["RABILL"] = null;
+        Session["MEASUREMENT_SHEET"] = null;
+        Session["RABILL_Abstract"] = null;
+        Session["Excess_Saving_Satement"] = dtfinalData;
+
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+        //paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList1.Add("TENDER_NO", strArray[0]);
+        paramList1.Add("part_no", strArray[1]);
+
+        string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+
+        //ViewState["RABILL"] = dtfinalData;
+        Response.Redirect("RA_Bill_Excel.aspx");
+        // ExportToExcelXML();
+    }
+
+    protected void Save_Measurement_sheet(string jobNumber, string tenderNo, string RA_Bill_No, string runningSrNumber)
+    {
+        DataTable dtfinalData = new DataTable();
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("Quantity", typeof(string));
+        dtfinalData.Columns.Add("Length", typeof(string));
+        dtfinalData.Columns.Add("Breadth", typeof(string));
+        dtfinalData.Columns.Add("Height", typeof(string));
+        dtfinalData.Columns.Add("Weight", typeof(string));
+        dtfinalData.Columns.Add("Dia", typeof(string));
+        dtfinalData.Columns.Add("Total_Quant", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+        StringBuilder sbQuery = new StringBuilder();
+
+        //sbQuery.Append("SELECT DISTINCT b.REF_ID, SEQ_NO, b.SORT_NO, SORNO,SORNO,BB.TEND_SOR_ID, ra_get_seq_desc (SEQ_NO, SORNO) act_desc ")
+        //.Append("           FROM RAB_ITEM_BREAKUP b, RAB_TENDER_MASTER bb WHERE     b.ref_id IN (SELECT ref_id ")
+        //.Append("           FROM rab_tender_master a WHERE A.JOB_NO = :JOB_NO AND A.TENDER_NO = :TENDER_NO) ")
+        //.Append("            AND B.REF_ID = BB.REF_ID AND b.SEQ_NO IN (SELECT bb.seq_no FROM RAB_TENDER_BILL bb ")
+        //.Append("            WHERE bb.ref_id = b.ref_id AND bb.RUN_SL_NO = :RUN_SL_NO AND bb.SEQ_NO = b.SEQ_NO) ORDER BY b.SORT_NO");
+
+        //sbQuery.Append("SELECT DISTINCT b.REF_ID, SEQ_NO, b.SORT_NO, SORNO,SORNO,BB.TEND_SOR_ID, to_char(nvl(B.SDESC,ra_get_seq_desc (SEQ_NO, SORNO))) act_desc ")
+        //.Append(" FROM RAB_ITEM_BREAKUP b, RAB_TENDER_MASTER bb WHERE     b.ref_id IN (SELECT ref_id ")
+        //.Append(" FROM rab_tender_master a WHERE A.JOB_NO = :JOB_NO AND A.TENDER_NO = :TENDER_NO AND A.PART_NO = :part_no) ")
+        //.Append(" AND B.REF_ID = BB.REF_ID AND b.SEQ_NO IN (SELECT bb.seq_no FROM RAB_TENDER_BILL bb ")
+        ////.Append(" WHERE bb.ref_id = b.ref_id AND bb.RUN_SL_NO = :RUN_SL_NO AND bb.SEQ_NO = b.SEQ_NO  and Bb.RCM_IS_FROZEN='Y' and BbB.CONT_IS_FROZEN='Y' ) ORDER BY b.SORT_NO");
+        // .Append(" WHERE bb.ref_id = b.ref_id AND bb.RUN_SL_NO = :RUN_SL_NO AND bb.SEQ_NO = b.SEQ_NO  and bB.CONT_IS_FROZEN='Y' ) ORDER BY b.SORT_NO");
+
+        sbQuery.Append(@"
+  SELECT DISTINCT
+         b.REF_ID,
+         b.SEQ_NO,
+         b.SORT_NO,
+         SORNO,
+         SORNO,
+         BB.TEND_SOR_ID,
+         TO_CHAR (NVL (B.SDESC, ra_get_seq_desc (b.SEQ_NO, b.SORNO))) act_desc
+    FROM RAB_ITEM_BREAKUP b, RAB_TENDER_MASTER bb,RAB_TENDER_BILL cc
+   WHERE     b.ref_id IN
+                (SELECT ref_id
+                    FROM rab_tender_master a
+                  WHERE     A.JOB_NO =:JOB_NO
+                        AND A.TENDER_NO =:TENDER_NO
+                        AND A.PART_NO =:part_no)
+         AND B.REF_ID = BB.REF_ID
+         and CC.RUN_SL_NO=:RUN_SL_NO
+         and CC.REF_ID=BB.REF_ID
+         and CC.SEQ_NO=B.SEQ_NO
+         and cc.CONT_IS_FROZEN = 'Y'
+");
+
+
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("JOB_NO", jobNumber);
+       // paramList.Add("TENDER_NO", tenderNo);
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+        paramList.Add("RUN_SL_NO", runningSrNumber);
+
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+
+        //Binding Child values and merging it with main datatable
+        int i = 0;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string tenderSORId = "";
+
+            string Child_ACTIVTY_DESC = "";
+            string UOM = "";
+            string QUANTITY = "";
+            string length = "";
+            string breadth = "";
+            string Height = "";
+            string Weight = "";
+            string Dia = "";
+            string REMARKS = "";
+            string Total_quantity = "";
+
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SORNO"].ToString();
+            longDesc = dr["act_desc"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+
+            dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), UOM, QUANTITY, length, breadth, Height, Weight, Dia, Total_quantity, REMARKS);
+            StringBuilder sbQueryDetail = new StringBuilder();
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            //sbQueryDetail.Append("select ID,REF_ID, SEQ_NO, TENDER_SOR_ID, ACT_SEQ, RUN_SL_NO, ")
+            //.Append(" RUN_SL_DATE, ACTIVTY_DESC, UNIT, REMARKS, QUANTITY, LENGTH, ")
+            //.Append(" BREADTH, HEIGHT, UNIT4, UNIT5, UNIT6, unit_Weight, CALCULATED_QTY, ACTIVITY_ORDER,CALCULATED_QTY ")
+            //.Append(" FROM RAB_TENDER_MSHEET ")
+            //.Append(" WHERE ")
+            //.Append(" REF_ID=:REF_ID ")
+            //.Append(" AND SEQ_NO=:SEQ_NO ")
+            //.Append(" AND TENDER_SOR_ID=:TENDER_SOR_ID ");
+            sbQueryDetail.Append("select ID,REF_ID, SEQ_NO, TENDER_SOR_ID, ACT_SEQ, RUN_SL_NO, ")
+          .Append(" RUN_SL_DATE, ACTIVTY_DESC, UNIT, REMARKS, round(QUANTITY,3) QUANTITY, round(LENGTH,3) LENGTH, ")
+          .Append(" round(BREADTH,3) BREADTH, round(HEIGHT,3) HEIGHT, round(UNIT4,3) UNIT4, round(UNIT5,3) UNIT5, round(UNIT6,3) UNIT6, round(unit_Weight,3) unit_Weight, round(CALCULATED_QTY,3) CALCULATED_QTY, ACTIVITY_ORDER,round(CALCULATED_QTY,3) CALCULATED_QTY ")
+          .Append(" FROM RAB_TENDER_MSHEET ")
+          .Append(" WHERE ")
+          .Append(" REF_ID=:REF_ID ")
+          .Append(" AND SEQ_NO=:SEQ_NO ")
+          .Append(" AND TENDER_SOR_ID=:TENDER_SOR_ID ");
+            if (runningSrNumber.Length > 0)
+            {
+                sbQueryDetail.Append(" AND RUN_SL_NO=:RUN_SL_NO ");
+                paramListDetail.Add("RUN_SL_NO", runningSrNumber);
+            }
+            sbQueryDetail.Append(" ORDER BY id");
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            paramListDetail.Add("TENDER_SOR_ID", tenderSORId);
+
+            //  paramListDetail.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+
+            //Binding Child values and merging it with main datatable
+            int childSequence = 0;
+            foreach (DataRow drChild in dtItemsBilling.Rows)
+            {
+                childSequence++;
+                Child_ACTIVTY_DESC = drChild["ACTIVTY_DESC"].ToString();
+                UOM = drChild["UNIT"].ToString();
+                QUANTITY = drChild["QUANTITY"].ToString();
+                length = drChild["LENGTH"].ToString();
+                breadth = drChild["BREADTH"].ToString();
+                Height = drChild["HEIGHT"].ToString();
+                Weight = drChild["unit_Weight"].ToString();
+                Dia = drChild["UNIT4"].ToString();
+                REMARKS = drChild["REMARKS"].ToString();
+                Total_quantity = drChild["CALCULATED_QTY"].ToString();
+
+                dtfinalData.Rows.Add("", childSequence, CleanInvalidXmlChars(Child_ACTIVTY_DESC), UOM, QUANTITY, length, breadth, Height, Weight, Dia, Total_quantity, REMARKS);
+            }
+
+            string sum_quantity = "";
+            StringBuilder sbQueryDetail_2 = new StringBuilder();
+            Dictionary<string, string> paramListDetail_2 = new Dictionary<string, string>();
+            sbQueryDetail_2.Append("select SUM (CALCULATED_QTY) SUM_CALCULATED_QTY ")
+            .Append(" FROM RAB_TENDER_MSHEET ")
+            .Append(" WHERE ")
+            .Append(" REF_ID=:REF_ID ")
+            .Append(" AND SEQ_NO=:SEQ_NO ")
+            .Append(" AND TENDER_SOR_ID=:TENDER_SOR_ID ");
+            if (runningSrNumber.Length > 0)
+            {
+                sbQueryDetail_2.Append(" AND RUN_SL_NO=:RUN_SL_NO ");
+                paramListDetail_2.Add("RUN_SL_NO", runningSrNumber);
+            }
+            paramListDetail_2.Add("REF_ID", refId);
+            paramListDetail_2.Add("SEQ_NO", seqNumber);
+            paramListDetail_2.Add("TENDER_SOR_ID", tenderSORId);
+
+            //  paramListDetail.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+            DataTable dtSum_Item = new DataTable();
+            dtSum_Item = objDB.bindDataTable(sbQueryDetail_2.ToString(), paramListDetail_2);
+
+            //Binding Child values and merging it with main datatable
+            int child_2_Sequence = 0;
+            foreach (DataRow drChild_2 in dtSum_Item.Rows)
+            {
+                child_2_Sequence++;
+                sum_quantity = drChild_2["SUM_CALCULATED_QTY"].ToString();
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Total", sum_quantity, "");
+            }          
+
+        }
+
+        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "Certified that the work has been done as per EIL Standards/Specifications/Drawings & the instructions of Engineer-in-Charge", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "");
+        dtfinalData.Rows.Add("", "", "Signature of Contractor             Checked by EIL Field Engineer               Area Coordinator", "", "", "", "", "", "", "", "", "");
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["MEASUREMENT_SHEET"] = dtfinalData;
+        Session["RABILL_Abstract"] = null;
+        Session["Excess_Saving_Satement"] = null;
+        //Session["RABILL"] = null;
+
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+        //paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList1.Add("TENDER_NO", strArray[0]);
+        paramList1.Add("part_no", strArray[1]);
+
+        string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no ", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+        //ViewState["RABILL"] = dtfinalData;
+        Response.Redirect("RA_Bill_Excel.aspx");
+        // ExportToExcelXML();
+    }
+
+    protected void generate_MOP(string jobNumber, string tenderNo, string RA_Bill_No, string runningSrNumber)
+    {        
+    }
+
+    protected void generate_Abstract(string jobNumber, string tenderNo, string RA_Bill_No, string runningSrNumber,string reportType)
+    {
+        string percentageRebate = getPercentageRebate(jobNumber, tenderNo);
+        DataTable dtfinalData = new DataTable();
+
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("SOR Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR Rate", typeof(string));
+        dtfinalData.Columns.Add("Part Rate", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Date", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto. Date", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        sbQuery.Append("SELECT DISTINCT A.REF_ID, a.seq_no,B.SOR_NO SORNO, C.SORT_NO, ra_get_seq_desc (a.SEQ_NO, B.SOR_NO) act_desc, ")
+        .Append(" nvl(c.ITEM_RATE_EDITED,c.ITEM_RATE) ITEM_RATE, A.TEND_SOR_ID, c.UOM, c.SITE_QTY, C.FLAG_HO FROM RAB_TENDER_BILL a, RAB_TENDER_MASTER b, RAB_ITEM_BREAKUP c ")
+        .Append(" WHERE     A.REF_ID = B.REF_ID AND A.REF_ID = C.REF_ID AND A.SEQ_NO = C.SEQ_NO ");
+        //.Append(" AND  a.RUN_SL_NO BETWEEN 0 AND (:RUN_SL_NO) and B.JOB_NO=:JOB_NO and B.TENDER_NO = :TENDER_NO  AND B.PART_NO = :part_no")
+        
+        // If else condition placed because : for multiple part vendor is same and vendor needs single abstract for all parts in a tender
+        // Email received on 12-Sep-2017 (Azeem)
+        /* commenting vendo logic as per discussion held on whatsapp on 08-aug-2022 (Same RCM logic to vendor also
+        if (Session["ROLE"] !=null && "VEND".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append(" AND  a.RUN_SL_NO BETWEEN 0 AND (:RUN_SL_NO) and B.JOB_NO=:JOB_NO and B.TENDER_NO = :TENDER_NO  AND B.PART_NO in ( select distinct a.part_no from RAB_TENDER_MASTER a where A.JOB_NO=:JOB_NO_VEND and A.TENDER_NO=:TENDER_NO_VEND and c_code=:CONT_VEND )");
+            paramList.Add("JOB_NO_VEND", jobNumber);
+            paramList.Add("TENDER_NO_VEND", strArray[0]);
+            paramList.Add("CONT_VEND", Session["USERID"].ToString());
+        }
+        else
+        {*/
+            sbQuery.Append(" AND  a.RUN_SL_NO BETWEEN 0 AND (:RUN_SL_NO) and B.JOB_NO=:JOB_NO and B.TENDER_NO = :TENDER_NO  AND B.PART_NO = :part_no");
+            paramList.Add("part_no", strArray[1]);
+        /*}*/ 
+        // comments end vendo logic as per discussion held on whatsapp on 08-aug-2022
+
+          //  sbQuery.Append(" and A.RCM_IS_FROZEN='Y' ");
+        //Commented above line on 22-Sep-2017
+         sbQuery.Append(" and A.CONT_IS_FROZEN='Y' ")
+             //changed order by to append extra item in the file at lowest position
+       //  .Append(" ORDER BY B.SOR_NO desc,C.SORT_NO,C.FLAG_HO");
+
+         .Append(" ORDER BY C.FLAG_HO,B.SOR_NO desc,C.SORT_NO");
+        
+        paramList.Add("JOB_NO", jobNumber);      
+        paramList.Add("TENDER_NO", strArray[0]);
+        //Below condition is shifted above
+        //paramList.Add("part_no", strArray[1]);
+        paramList.Add("RUN_SL_NO", runningSrNumber);
+
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+
+        //Binding Child values and merging it with main datatable
+        int i = 0;
+        decimal Total_Amt_Up_Prev_Bill_1 = 0;
+        decimal Total_Amt_Since_Prev_Bill_1 = 0;
+        decimal Total_Amt_Total_upto_date_1 = 0;
+
+        decimal Qty_Up_Prev_Bill = 0;
+        decimal Qty_Since_Prev_Bill = 0;
+        decimal Qty_Total_upto_date = 0;
+
+        decimal Amt_Up_Prev_Bill = 0;
+        decimal Amt_Since_Prev_Bill = 0;
+        decimal Amt_Total_upto_date = 0;
+
+        decimal Net_Total_Amt_Up_Prev_Bill = 0;
+        decimal Net_Total_Since_Prev_Bill = 0;
+        decimal Net_Total_Total_upto_date = 0;
+
+        decimal Rebate_Total_Amt_Up_Prev_Bill = 0;
+        decimal Rebate_Total_Since_Prev_Bill = 0;
+        decimal Rebate_Total_upto_date = 0;
+
+        decimal Flag_N_Total_Amt_Up_Prev_Bill = 0;
+        decimal Flag_N_Total_Since_Prev_Bill = 0;
+        decimal Flag_N_Total_upto_date = 0;
+
+        int parentcount = 0;
+
+        int highlight_cell_count = 8;
+        //FLAG_HO = 'N' for standard SOR items
+        int numberOfRecords_N = dtItemsHeader.Select("FLAG_HO = 'N'").Length;
+
+        //FLAG_HO = 'Y' for Extra items
+        int numberOfRecords_Y = dtItemsHeader.Select("FLAG_HO = 'Y'").Length;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            parentcount++;
+            highlight_cell_count++;
+
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string UOM = "";
+            string SORQty = "";
+            string itemRate = "";
+            string tenderSORId = "";
+            string str_extra_item = "";
+
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SORNO"].ToString();
+            longDesc = dr["act_desc"].ToString();
+            UOM = dr["uom"].ToString();
+            SORQty = dr["SITE_QTY"].ToString();
+            itemRate = dr["ITEM_RATE"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+            str_extra_item = dr["FLAG_HO"].ToString();
+
+            dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), "", "", "", "", "", "", "", "", "", "", "");
+
+            StringBuilder sbQueryDetail = new StringBuilder();
+            sbQueryDetail.Append("SELECT REF_ID, seq_no, TEND_SOR_ID, ACTIVITY_PERCENT,ACTIVITY_DESC, SUM (Up_Prev_Bill) Up_Prev_Bill,")
+            .Append(" nvl(SUM (Since_Prev_Bill),0) Since_Prev_Bill FROM (  SELECT a.REF_ID,a.seq_no, ")
+            .Append(" a.TEND_SOR_ID, A.ACTIVITY_PERCENT,A.ACTIVITY_DESC, SUM (case when a.RCM_QTY = 0 then a.CONT_QTY else  a.RCM_QTY end) Up_Prev_Bill, ")
+            .Append(" 0 Since_Prev_Bill FROM VW_RA_BILL_ITEMs_detail a ")
+            .Append(" WHERE  a.REF_ID = :REF_ID and a.seq_no = :SEQ_NO AND a.TEND_SOR_ID = :TEND_SOR_ID AND a.RUN_SL_NO < (:RUN_SL_NO)  and a.RCM_IS_FROZEN='Y' and a.CONT_IS_FROZEN='Y'")
+            .Append(" GROUP BY a.REF_ID,a.seq_no, a.TEND_SOR_ID, a.ACTIVITY_PERCENT,a.ACTIVITY_DESC UNION ")
+            .Append(" SELECT b.REF_ID,b.seq_no,  b.TEND_SOR_ID, b.ACTIVITY_PERCENT,b.ACTIVITY_DESC, ")
+            .Append(" 0 Up_Prev_Bill, nvl(SUM (case when b.RCM_QTY = 0 then b.CONT_QTY else  b.RCM_QTY end),0) Since_Prev_Bill ")
+            .Append(" FROM VW_RA_BILL_ITEMs_detail b WHERE b.REF_ID = :REF_ID and b.seq_no = :SEQ_NO ")
+                // Changed below query on 22-09-2017
+                // .Append(" AND b.TEND_SOR_ID = :TEND_SOR_ID AND b.RUN_SL_NO = (:RUN_SL_NO) and b.RCM_IS_FROZEN='Y'    and b.CONT_IS_FROZEN='Y'")
+            .Append(" AND b.TEND_SOR_ID = :TEND_SOR_ID AND b.RUN_SL_NO = (:RUN_SL_NO)     and b.CONT_IS_FROZEN='Y'")
+            .Append(" GROUP BY b.REF_ID,b.seq_no, b.TEND_SOR_ID, b.ACTIVITY_PERCENT,b.ACTIVITY_DESC) ")
+            .Append(" GROUP BY REF_ID,seq_no, TEND_SOR_ID, ACTIVITY_PERCENT,ACTIVITY_DESC order by ACTIVITY_PERCENT desc");
+
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            paramListDetail.Add("TEND_SOR_ID", tenderSORId);
+            paramListDetail.Add("RUN_SL_NO", runningSrNumber);
+            //paramListDetail.Add("RUN_SL_NO", "6,7");
+
+            //paramListDetail.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+
+            //Binding Child values and merging it with main datatable
+            int childSequence = 0;
+            foreach (DataRow drChild in dtItemsBilling.Rows)
+            {
+                highlight_cell_count++;
+                childSequence++;
+                string actPercentTemp = "1";
+                string actDescription = "";
+                if (drChild["ACTIVITY_PERCENT"] != null)
+                {
+                    actPercentTemp = drChild["ACTIVITY_PERCENT"].ToString();
+                }
+
+                if (drChild["ACTIVITY_DESC"] != null)
+                {
+                    actDescription = drChild["ACTIVITY_DESC"].ToString();
+                }
+
+               // string actPercent_result = Regex.Replace(actPercentTemp, @"[^0-9a-zA-Z]+", " "); 21May2022 Rajesh
+               // string actPercent_result = Regex.Replace(actPercentTemp, @"[^0-9a-zA-Z.]+", " ");
+                string actPercent_result = actPercentTemp.Replace("%", "");
+                Qty_Up_Prev_Bill = 0;
+                Qty_Since_Prev_Bill = 0;
+                Qty_Total_upto_date = 0;
+                Amt_Up_Prev_Bill = 0;
+                Amt_Since_Prev_Bill = 0;
+                Amt_Total_upto_date = 0;
+
+                if (drChild["Up_Prev_Bill"] != null)
+                {
+                    Qty_Up_Prev_Bill = decimal.Parse(drChild["Up_Prev_Bill"].ToString());
+                    Amt_Up_Prev_Bill = Qty_Up_Prev_Bill * decimal.Parse(itemRate) * (decimal.Parse(actPercent_result)) / 100;
+                }
+
+                if (drChild["Since_Prev_Bill"] != null)
+                {
+                    Qty_Since_Prev_Bill = decimal.Parse(drChild["Since_Prev_Bill"].ToString());
+                    Amt_Since_Prev_Bill = Qty_Since_Prev_Bill * decimal.Parse(itemRate) * (decimal.Parse(actPercent_result)) / 100;
+                }
+
+
+                // if (Qty_Up_Prev_Bill != 0 && Qty_Since_Prev_Bill != 0)
+                // if (Qty_Up_Prev_Bill >= 0 && Qty_Since_Prev_Bill >= 0)
+                if (Qty_Up_Prev_Bill >= 0)
+                {
+                    Qty_Total_upto_date = Qty_Up_Prev_Bill + Qty_Since_Prev_Bill;
+                    Amt_Total_upto_date = Amt_Up_Prev_Bill + Amt_Since_Prev_Bill;
+                }
+
+                Total_Amt_Up_Prev_Bill_1 += Math.Round(Amt_Up_Prev_Bill, 2);
+                Total_Amt_Since_Prev_Bill_1 += Math.Round(Amt_Since_Prev_Bill, 2);
+                Total_Amt_Total_upto_date_1 += Math.Round(Amt_Total_upto_date, 2);
+
+                dtfinalData.Rows.Add("", childSequence, actDescription, UOM, SORQty, itemRate, actPercentTemp, Qty_Up_Prev_Bill, Qty_Since_Prev_Bill, Qty_Total_upto_date, Math.Round(Amt_Up_Prev_Bill, 2).ToString("0.00"), Math.Round(Amt_Since_Prev_Bill, 2).ToString("0.00"), Math.Round(Amt_Total_upto_date, 2).ToString("0.00"), "");
+
+                //if (parentcount == numberOfRecords_N)
+                //{
+                //    Flag_N_Total_Amt_Up_Prev_Bill = Math.Round(Total_Amt_Up_Prev_Bill_1, 2);
+                //    Flag_N_Total_Since_Prev_Bill = Math.Round(Total_Amt_Since_Prev_Bill_1, 2);
+                //    Flag_N_Total_upto_date = Math.Round(Total_Amt_Total_upto_date_1, 2);
+                //    highlight_cell_count++;
+                //    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //    highlight_cell_count++;
+                //    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //    highlight_cell_count++;
+
+                //    Session["highlight_cell_Total"] = highlight_cell_count;
+                //    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Total", Flag_N_Total_Amt_Up_Prev_Bill.ToString("0.00"), Flag_N_Total_Since_Prev_Bill.ToString("0.00"), Flag_N_Total_upto_date.ToString("0.00"), "");
+                //    highlight_cell_count++;
+                //    if (!string.Equals(percentageRebate, ""))
+                //    {
+                //        string textNote = "";
+
+                //        decimal NewPercentageValue = decimal.Parse(percentageRebate.Replace("-", ""));
+                //        if (percentageRebate.Contains("-"))
+                //        {
+                //            textNote = "Decrease of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                //        }
+                //        else
+                //        {
+                //            textNote = "Increase of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                //        }
+
+                //        Total_Amt_Up_Prev_Bill_1 = Math.Round(Total_Amt_Up_Prev_Bill_1, 2);
+                //        Total_Amt_Since_Prev_Bill_1 = Math.Round(Total_Amt_Since_Prev_Bill_1, 2);
+                //        Total_Amt_Total_upto_date_1 = Math.Round(Total_Amt_Total_upto_date_1, 2);
+
+                //        Rebate_Total_Amt_Up_Prev_Bill = (Total_Amt_Up_Prev_Bill_1 * NewPercentageValue) / 100;
+                //        Rebate_Total_Since_Prev_Bill = (Total_Amt_Since_Prev_Bill_1 * NewPercentageValue) / 100;
+                //        Rebate_Total_upto_date = (Total_Amt_Total_upto_date_1 * NewPercentageValue) / 100;
+
+                //        Rebate_Total_Amt_Up_Prev_Bill = Math.Round(Rebate_Total_Amt_Up_Prev_Bill, 2);
+                //        Rebate_Total_Since_Prev_Bill = Math.Round(Rebate_Total_Since_Prev_Bill, 2);
+                //        Rebate_Total_upto_date = Math.Round(Rebate_Total_upto_date, 2);
+
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", textNote, Rebate_Total_Amt_Up_Prev_Bill.ToString("0.00"), Rebate_Total_Since_Prev_Bill.ToString("0.00"), Rebate_Total_upto_date.ToString("0.00"), "");
+                //        highlight_cell_count++;
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //        if (percentageRebate.Contains("-"))
+                //        {
+                //            Net_Total_Amt_Up_Prev_Bill = Total_Amt_Up_Prev_Bill_1 - Rebate_Total_Amt_Up_Prev_Bill;
+                //            Net_Total_Since_Prev_Bill = Total_Amt_Since_Prev_Bill_1 - Rebate_Total_Since_Prev_Bill;
+                //            Net_Total_Total_upto_date = Total_Amt_Total_upto_date_1 - Rebate_Total_upto_date;
+                //        }
+                //        else
+                //        {
+                //            Net_Total_Amt_Up_Prev_Bill = Total_Amt_Up_Prev_Bill_1 + Rebate_Total_Amt_Up_Prev_Bill;
+                //            Net_Total_Since_Prev_Bill = Total_Amt_Since_Prev_Bill_1 + Rebate_Total_Since_Prev_Bill;
+                //            Net_Total_Total_upto_date = Total_Amt_Total_upto_date_1 + Rebate_Total_upto_date;
+                //        }
+
+                //        Net_Total_Amt_Up_Prev_Bill = Math.Round(Net_Total_Amt_Up_Prev_Bill, 2);
+                //        Net_Total_Since_Prev_Bill = Math.Round(Net_Total_Since_Prev_Bill, 2);
+                //        Net_Total_Total_upto_date = Math.Round(Net_Total_Total_upto_date, 2);
+
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Net Total", Net_Total_Amt_Up_Prev_Bill.ToString("0.00"), Net_Total_Since_Prev_Bill.ToString("0.00"), Net_Total_Total_upto_date.ToString("0.00"), "");
+                //        highlight_cell_count++;
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //    }
+                //    else
+                //    {
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //    }
+                //    if (numberOfRecords_Y > 0)
+                //    {
+                //        dtfinalData.Rows.Add("", "", "EXTRA ITEMS", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //        dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                //        highlight_cell_count++;
+                //    }
+                //    Total_Amt_Up_Prev_Bill_1 = 0;
+                //    Total_Amt_Since_Prev_Bill_1 = 0;
+                //    Total_Amt_Total_upto_date_1 = 0;
+                //}
+            }
+            // removing for loop bracket from here
+
+
+
+            // The below mentioned code is copied out from above mentioned commented code
+
+
+            if (parentcount == numberOfRecords_N)
+            {
+                Flag_N_Total_Amt_Up_Prev_Bill = Math.Round(Total_Amt_Up_Prev_Bill_1, 2);
+                Flag_N_Total_Since_Prev_Bill = Math.Round(Total_Amt_Since_Prev_Bill_1, 2);
+                Flag_N_Total_upto_date = Math.Round(Total_Amt_Total_upto_date_1, 2);
+                highlight_cell_count++;
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                highlight_cell_count++;
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                highlight_cell_count++;
+
+                Session["highlight_cell_Total"] = highlight_cell_count;
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Total", Flag_N_Total_Amt_Up_Prev_Bill.ToString("0.00"), Flag_N_Total_Since_Prev_Bill.ToString("0.00"), Flag_N_Total_upto_date.ToString("0.00"), "");
+                highlight_cell_count++;
+                if (!string.Equals(percentageRebate, ""))
+                {
+                    string textNote = "";
+
+                    decimal NewPercentageValue = decimal.Parse(percentageRebate.Replace("-", ""));
+                    if (percentageRebate.Contains("-"))
+                    {
+                        textNote = "Decrease of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                    }
+                    else
+                    {
+                        textNote = "Increase of " + percentageRebate.Replace("-", "") + " % on Executed Amount As per LOA";
+                    }
+
+                    Total_Amt_Up_Prev_Bill_1 = Math.Round(Total_Amt_Up_Prev_Bill_1, 2);
+                    Total_Amt_Since_Prev_Bill_1 = Math.Round(Total_Amt_Since_Prev_Bill_1, 2);
+                    Total_Amt_Total_upto_date_1 = Math.Round(Total_Amt_Total_upto_date_1, 2);
+
+                    Rebate_Total_Amt_Up_Prev_Bill = (Total_Amt_Up_Prev_Bill_1 * NewPercentageValue) / 100;
+                    Rebate_Total_Since_Prev_Bill = (Total_Amt_Since_Prev_Bill_1 * NewPercentageValue) / 100;
+                    Rebate_Total_upto_date = (Total_Amt_Total_upto_date_1 * NewPercentageValue) / 100;
+
+                    Rebate_Total_Amt_Up_Prev_Bill = Math.Round(Rebate_Total_Amt_Up_Prev_Bill, 2);
+                    Rebate_Total_Since_Prev_Bill = Math.Round(Rebate_Total_Since_Prev_Bill, 2);
+                    Rebate_Total_upto_date = Math.Round(Rebate_Total_upto_date, 2);
+
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", textNote, Rebate_Total_Amt_Up_Prev_Bill.ToString("0.00"), Rebate_Total_Since_Prev_Bill.ToString("0.00"), Rebate_Total_upto_date.ToString("0.00"), "");
+                    highlight_cell_count++;
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                    if (percentageRebate.Contains("-"))
+                    {
+                        Net_Total_Amt_Up_Prev_Bill = Total_Amt_Up_Prev_Bill_1 - Rebate_Total_Amt_Up_Prev_Bill;
+                        Net_Total_Since_Prev_Bill = Total_Amt_Since_Prev_Bill_1 - Rebate_Total_Since_Prev_Bill;
+                        Net_Total_Total_upto_date = Total_Amt_Total_upto_date_1 - Rebate_Total_upto_date;
+                    }
+                    else
+                    {
+                        Net_Total_Amt_Up_Prev_Bill = Total_Amt_Up_Prev_Bill_1 + Rebate_Total_Amt_Up_Prev_Bill;
+                        Net_Total_Since_Prev_Bill = Total_Amt_Since_Prev_Bill_1 + Rebate_Total_Since_Prev_Bill;
+                        Net_Total_Total_upto_date = Total_Amt_Total_upto_date_1 + Rebate_Total_upto_date;
+                    }
+
+                    Net_Total_Amt_Up_Prev_Bill = Math.Round(Net_Total_Amt_Up_Prev_Bill, 2);
+                    Net_Total_Since_Prev_Bill = Math.Round(Net_Total_Since_Prev_Bill, 2);
+                    Net_Total_Total_upto_date = Math.Round(Net_Total_Total_upto_date, 2);
+
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Net Total", Net_Total_Amt_Up_Prev_Bill.ToString("0.00"), Net_Total_Since_Prev_Bill.ToString("0.00"), Net_Total_Total_upto_date.ToString("0.00"), "");
+                    highlight_cell_count++;
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                }
+                else
+                {
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                }
+                if (numberOfRecords_Y > 0)
+                {
+                    dtfinalData.Rows.Add("", "", "EXTRA ITEMS", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                    dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                    highlight_cell_count++;
+                }
+                Total_Amt_Up_Prev_Bill_1 = 0;
+                Total_Amt_Since_Prev_Bill_1 = 0;
+                Total_Amt_Total_upto_date_1 = 0;
+            }
+        }
+
+        // Code copied out from above condition
+
+        
+        if (numberOfRecords_Y > 0)
+        {
+            decimal Gross_Total_Amt_Up_Prev_Bill = 0;
+            decimal Gross_Total_Since_Prev_Bill = 0;
+            decimal Gross_Total_Total_upto_date = 0;
+            if (!string.Equals(percentageRebate, ""))
+            {
+                Gross_Total_Amt_Up_Prev_Bill = Net_Total_Amt_Up_Prev_Bill + Total_Amt_Up_Prev_Bill_1;
+                Gross_Total_Since_Prev_Bill = Net_Total_Since_Prev_Bill + Total_Amt_Since_Prev_Bill_1;
+                Gross_Total_Total_upto_date = Net_Total_Total_upto_date + Total_Amt_Total_upto_date_1;
+            }
+            else
+            {
+                Gross_Total_Amt_Up_Prev_Bill = Flag_N_Total_Amt_Up_Prev_Bill + Total_Amt_Up_Prev_Bill_1;
+                Gross_Total_Since_Prev_Bill = Flag_N_Total_Since_Prev_Bill + Total_Amt_Since_Prev_Bill_1;
+                Gross_Total_Total_upto_date = Flag_N_Total_upto_date + Total_Amt_Total_upto_date_1;
+            }
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+            highlight_cell_count++;
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Extra Item Total", Total_Amt_Up_Prev_Bill_1.ToString("0.00"), Total_Amt_Since_Prev_Bill_1.ToString("0.00"), Total_Amt_Total_upto_date_1.ToString("0.00"), "");
+            highlight_cell_count++;
+            Session["Extra_Items_flag"] = "Y";
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+            highlight_cell_count++;
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "Gross Total", Gross_Total_Amt_Up_Prev_Bill.ToString("0.00"), Gross_Total_Since_Prev_Bill.ToString("0.00"), Gross_Total_Total_upto_date.ToString("0.00"), "");
+            Session["highlight_cell_Gross"] = highlight_cell_count;
+        }
+
+        //Adding 5 blank rows for signing
+        for (int blankRows = 0; blankRows < 6; blankRows++)
+        {
+            dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+        }
+
+       
+
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["MEASUREMENT_SHEET"] = null;
+        Session["RABILL_Abstract"] = dtfinalData;        
+
+        Session["Excess_Saving_Satement"] = null;
+
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+       // paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+
+        paramList1.Add("TENDER_NO", strArray[0]);
+        paramList1.Add("part_no", strArray[1]);
+      //  string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+      //                                                   from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+      //                                                   and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no", paramList1);
+
+
+        string contractorName = objDB.executeScalar(@"select distinct 'Contractor Name:'||conname ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,VW_CONTDIR_ALL b where A.c_Code=B.CONCODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+        //Checking if PDf is to be generated
+        if ("PDF".Equals(reportType))
+        {            
+            Session["Abstract_TYPE"] = "PDF";
+        }
+        else
+        {
+            Session["Abstract_TYPE"] = "EXCEL";
+        }
+        Response.Redirect("RA_Bill_Excel.aspx");
+    }
+
+    protected void generateBill(string jobNumber, string tenderNo)
+    {
+
+        //select REF_ID, SEQ_NO,ra_get_seq_desc(SEQ_NO, SORNO) act_desc, ITEM_RATE, UOM, SORT_NO, ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY, SITE_QTY, FLAG_HO, SORNO 
+        //from RAB_ITEM_BREAKUP b 
+        //where b.ref_id in (
+        //select ref_id from rab_tender_master a where A.JOB_NO='A133' and A.TENDER_NO='8000'
+        //) order by b.SEQ_NO,b.SORT_NO
+        DataTable dtfinalData = new DataTable();
+
+        dtfinalData.Columns.Add("SOR S. No", typeof(string));
+        dtfinalData.Columns.Add("SOR Item No.", typeof(string));
+        dtfinalData.Columns.Add("Item", typeof(string));
+        dtfinalData.Columns.Add("UOM", typeof(string));
+        dtfinalData.Columns.Add("SOR Quantity", typeof(string));
+        dtfinalData.Columns.Add("SOR Rate", typeof(string));
+        dtfinalData.Columns.Add("Part Rate", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Quantity Up to Date", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Since Prev. Bill", typeof(string));
+        dtfinalData.Columns.Add("Amount Upto. Date", typeof(string));
+        dtfinalData.Columns.Add("Remarks", typeof(string));
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select distinct b.REF_ID, SEQ_NO,ra_get_seq_desc(SEQ_NO, SORNO) act_desc, nvl(ITEM_RATE_EDITED,ITEM_RATE) ITEM_RATE, UOM, SORT_NO, ACT_PERCENT, ACT_SEQ, ADDED_ON, HO_QTY, SITE_QTY, FLAG_HO, SORNO,BB.TEND_SOR_ID ")
+    .Append(" from RAB_ITEM_BREAKUP b , RAB_TENDER_MASTER bb ")
+    .Append(" where b.ref_id in ( ")
+    .Append(" select ref_id from rab_tender_master a where A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no")
+    .Append(" ) ")
+    .Append(" and B.REF_ID= BB.REF_ID ")
+        .Append(" order by b.SEQ_NO,b.SORT_NO ");
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+       
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("JOB_NO", jobNumber);
+       // paramList.Add("TENDER_NO", tenderNo);
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+        //Generating all header
+        DataTable dtItemsHeader = new DataTable();
+        dtItemsHeader = objDB.bindDataTable(sbQuery.ToString(), paramList);
+
+        //Binding Child values and merging it with main datatable
+        int i = 0;
+        foreach (DataRow dr in dtItemsHeader.Rows)
+        {
+            string refId = "";
+            string seqNumber = "";
+            string sorNumber = "";
+            string longDesc = "";
+            string UOM = "";
+            string SORQty = "";
+            string itemRate = "";
+            string tenderSORId = "";
+            string actPercent = "";
+            refId = dr["ref_id"].ToString();
+            seqNumber = dr["SEQ_NO"].ToString();
+            sorNumber = dr["SORNO"].ToString();
+            longDesc = dr["act_desc"].ToString();
+            UOM = dr["uom"].ToString();
+            SORQty = dr["ho_qty"].ToString();
+            itemRate = dr["ITEM_RATE"].ToString();
+            tenderSORId = dr["TEND_SOR_ID"].ToString();
+            //actPercent = dr["ACT_PERCENT"].ToString();
+
+            if (SORQty.Length > 0 && itemRate.Length > 0)
+            {
+                actPercent = "100%";
+            }
+            else
+            {
+                actPercent = "";
+            }
+
+            //dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), "", "", "", "", "", "", "", "", "", "", "");
+            dtfinalData.Rows.Add(++i, seqNumber, CleanInvalidXmlChars(longDesc), UOM, SORQty, itemRate, actPercent, "", "", "", "", "", "", "");
+
+            StringBuilder sbQueryDetail = new StringBuilder();
+            sbQueryDetail.Append(" select distinct TEND_SOR_ID,REF_ID,SEQ_NO,ACTIVITY_DESC , ")
+                  .Append("  ACTIVITY_PERCENT,IS_BREAKABLE,ACTIVITY_ID ,")
+                //.Append(" ((ITEM_RATE * HO_QTY)*ACTIVITY_PERCENT/100)  activityAmt,  ")
+                //.Append("  (HO_QTY*ACTIVITY_PERCENT/100) activityQty ,")
+                 .Append(" nvl(AC_IS_FROZEN,'N') frozen ,CONT_IS_FROZEN,CONT_QTY,BENGG_IS_FROZEN,AC_IS_FROZEN,RCM_IS_FROZEN, ")
+                .Append("   BENGG_QTY,AC_QTY,nvl(RCM_QTY,0) RCM_QTY,RUN_SL_NO  ")
+                 .Append("  from VW_RA_BILL_ITEMs_detail  ")
+                 .Append("  where REF_ID=:REF_ID ")
+                 .Append(" and SEQ_NO=:SEQ_NO ")
+                //  .Append(" and RA_BLL_NO=:RA_BLL_NO ")
+                    .Append(" and TEND_SOR_ID=:TEND_SOR_ID ")
+                 .Append(" order by REF_ID,SEQ_NO ");
+            Dictionary<string, string> paramListDetail = new Dictionary<string, string>();
+            paramListDetail.Add("REF_ID", refId);
+            paramListDetail.Add("SEQ_NO", seqNumber);
+            paramListDetail.Add("TEND_SOR_ID", tenderSORId);
+
+            //  paramListDetail.Add("RA_BLL_NO", ViewState["RA_BLL_NO"].ToString());
+            DataTable dtItemsBilling = new DataTable();
+            dtItemsBilling = objDB.bindDataTable(sbQueryDetail.ToString(), paramListDetail);
+
+            //Binding Child values and merging it with main datatable
+            int childSequence = 0;
+            foreach (DataRow drChild in dtItemsBilling.Rows)
+            {
+                childSequence++;
+                string uptoPreviousBillQty = "0";
+                uptoPreviousBillQty = getTotalActivityCompleted(refId, seqNumber, tenderSORId);
+                string sincePreviousBillQty = "0";
+                sincePreviousBillQty = drChild["RCM_QTY"].ToString();
+
+
+                string uptoPreviousBillAmt = "0";
+                if (itemRate.Length > 0)
+                {
+                    uptoPreviousBillAmt = (float.Parse(uptoPreviousBillQty) * float.Parse(itemRate)).ToString();
+                }
+                string uptoPreviousBillTotalQty = "0";
+                uptoPreviousBillTotalQty = (float.Parse(uptoPreviousBillQty) + float.Parse(sincePreviousBillQty)).ToString();
+
+                string sincePreviousBillAmt = "0";
+                if (itemRate.Length > 0)
+                {
+                    sincePreviousBillAmt = (float.Parse(sincePreviousBillQty) * float.Parse(itemRate)).ToString();
+                }
+                string sincePreviousBillTotalAmt = "0";
+
+                sincePreviousBillTotalAmt = (float.Parse(uptoPreviousBillAmt) + float.Parse(sincePreviousBillAmt)).ToString();
+
+                //  dtfinalData.Rows.Add("", "", drChild["ACTIVITY_DESC"].ToString(), UOM, SORQty, itemRate, drChild["ACTIVITY_PERCENT"].ToString(), "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", childSequence, CleanInvalidXmlChars(drChild["ACTIVITY_DESC"].ToString()), UOM, SORQty, itemRate, drChild["ACTIVITY_PERCENT"].ToString(), uptoPreviousBillQty, sincePreviousBillQty, uptoPreviousBillTotalQty, uptoPreviousBillAmt, sincePreviousBillAmt, sincePreviousBillTotalAmt, "");
+            }
+        }
+
+        Session["JOB_NUMBER"] = ddJobNumber.SelectedValue;
+        Session["TENDER_NUMBER"] = ddTenderNo.SelectedItem.Text;
+        Session["RABILL_Abstract"] = dtfinalData;
+        Session["RABILL"] = null;
+
+        Dictionary<string, string> paramList1 = new Dictionary<string, string>();
+        paramList1.Add("JOB_NO", ddJobNumber.SelectedValue);
+        //paramList1.Add("TENDER_NO", ddTenderNo.SelectedValue);
+
+        paramList1.Add("TENDER_NO", strArray[0]);
+        paramList1.Add("part_no", strArray[1]);
+        string contractorName = objDB.executeScalar(@"  select distinct 'Contractor Name:'||name ||'('||a.C_CODE||')' cont_detail 
+                                                         from RAB_TENDER_MASTER a,RAB_CONT_DTL b where A.c_Code=B.C_CODE
+                                                         and A.JOB_NO=:JOB_NO and A.TENDER_NO=:TENDER_NO AND A.PART_NO = :part_no", paramList1);
+
+        Session["CONTRACTOR_NAME"] = contractorName;
+
+
+        //ViewState["RABILL"] = dtfinalData;
+        Response.Redirect("RA_Bill_Excel.aspx");
+        // ExportToExcelXML();
+    }
+
+    public static string CleanInvalidXmlChars(string text)
+    {
+        // From xml spec valid chars: 
+        // #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]     
+        // any Unicode character, excluding the surrogate blocks, FFFE, and FFFF. 
+        string re = @"[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000-x10FFFF]";
+        return Regex.Replace(text, re, "");
+    }
+
+    protected string get_Previous_Quantity(string refID, string seqNo, string tender_sor_id, string activity_id, string running_sl_no)
+    {
+        //
+        string qty = "0";
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select NVL (rab_get_previousQty (:REF_ID, :TEND_SOR_ID, :SEQ_NO, :ACTIVITY_ID, :RUN_SL_NO, 'O'), 0) previousQty ")
+        .Append(" from dual");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add(":REF_ID", refID);
+        paramList.Add(":TEND_SOR_ID", tender_sor_id);
+        paramList.Add(":SEQ_NO", seqNo);
+        paramList.Add(":ACTIVITY_ID", activity_id);
+        paramList.Add(":RUN_SL_NO", running_sl_no);
+        qty = objDB.executeScalar(sbQuery.ToString(), paramList);
+        if (qty.Length == 0)
+        {
+            qty = "0";
+        }
+        return qty;
+    }
+
+    protected string getTotalActivityCompleted(string refId, string seqNo, string tenderSorId)
+    {
+        string qty = "0";
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select nvl(sum(rcm_qty),0) totalQty ")
+        .Append(" from rab_tender_bill a where REF_ID=:REF_ID  ")
+        .Append(" and SEQ_NO=:SEQ_NO and TEND_SOR_ID=:TEND_SOR_ID ")
+        .Append(" and act_seq in ")
+        .Append(" (select activity_id from rab_tender_details ")
+        .Append(" where REF_ID=a.ref_id and SEQ_NO=a.SEQ_NO) ")
+        .Append(" and RCM_IS_FROZEN='Y' ")
+            // Added for calculating upto previous bill value
+        .Append(@" and RA_BLL_NO < (select (max(RA_BLL_NO)) from rab_tender_bill where  REF_ID =:REF_ID2
+         AND SEQ_NO =:SEQ_NO2 group by REF_ID,SEQ_NO) ")
+
+
+        .Append("group by REF_ID, SEQ_NO, TEND_SOR_ID");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("REF_ID", refId);
+        paramList.Add("SEQ_NO", seqNo);
+
+        paramList.Add("REF_ID2", refId);
+        paramList.Add("SEQ_NO2", seqNo);
+
+        paramList.Add("TEND_SOR_ID", tenderSorId);
+
+        qty = objDB.executeScalar(sbQuery.ToString(), paramList);
+
+        if (qty.Length == 0)
+        {
+            qty = "0";
+        }
+        return qty;
+    }
+
+    protected string getTotalActivityCompleted(string refId, string seqNo, string tenderSorId, string running_sr_no)
+    {
+        string qty = "0";
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select nvl(sum(rcm_qty),0) totalQty ")
+        .Append(" from rab_tender_bill a where REF_ID=:REF_ID  ")
+        .Append(" and SEQ_NO=:SEQ_NO and TEND_SOR_ID=:TEND_SOR_ID ")
+        .Append(" and act_seq in ")
+        .Append(" (select activity_id from rab_tender_details ")
+        .Append(" where REF_ID=a.ref_id and SEQ_NO=a.SEQ_NO) ")
+        .Append(" and RCM_IS_FROZEN='Y' ");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        //if (ViewState["RUN_SL_NO"].ToString().Length > 0 &&  int.Parse(ViewState["RUN_SL_NO"].ToString()) > 1)
+        //{
+        //    sbQuery.Append(" and RUN_SL_NO  < :RUN_SL_NO ");
+        //    paramList.Add("RUN_SL_NO", ViewState["RUN_SL_NO"].ToString());
+        //}
+        //else
+        //{
+        //    sbQuery.Append(" and RUN_SL_NO  = 1 ");
+        //}
+
+        sbQuery.Append(" and RUN_SL_NO  < :RUN_SL_NO ");
+        paramList.Add("RUN_SL_NO", ViewState["RUN_SL_NO"].ToString());
+
+        sbQuery.Append("group by REF_ID, SEQ_NO, TEND_SOR_ID");
+
+        paramList.Add("REF_ID", refId);
+        paramList.Add("SEQ_NO", seqNo);
+        paramList.Add("TEND_SOR_ID", tenderSorId);
+
+        qty = objDB.executeScalar(sbQuery.ToString(), paramList);
+
+        if (qty.Length == 0)
+        {
+            qty = "0";
+        }
+        return qty;
+    }
+
+    protected string getPercentageRebate(string jobNumber, string TenderNumber)
+    {
+        string percentage = "";
+        StringBuilder sbQuery = new StringBuilder();
+        sbQuery.Append("select PECENTAGE_VALUE  ")
+        .Append(" from RAB_TENDER_REBATE where JOB_NO=:JOB_NO  ")
+        .Append(" and TENDER_NO=:TENDER_NO AND  PART_NO = :part_no ")
+        .Append(" and IS_FROZEN='Y' ");
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        paramList.Add("JOB_NO", jobNumber);
+      //  paramList.Add("TENDER_NO", TenderNumber);
+ 
+        paramList.Add("TENDER_NO", strArray[0]);
+        paramList.Add("part_no", strArray[1]);
+
+        percentage = objDB.executeScalar(sbQuery.ToString(), paramList);
+
+
+        return percentage;
+    }
+
+    // Below function is used for Opening an static Excel file
+    protected void btnGenerateAbstract_Click_old(object sender, EventArgs e)
+    {
+        //Response.Redirect("\\Temporary_files\\RA_Bill_Abstract.xlsx",false);
+
+        string filePath = Server.MapPath("/rabilling/Temporary_files/RA_Bill_Abstract.xlsx");
+
+        // Opening xls file on client side
+        Response.Clear();
+        Response.ClearContent();
+        Response.ClearHeaders();
+        // Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
+
+        Response.AddHeader("content-disposition", "attachment;filename=RA_Bill_Abstract.xlsx"); //File name can be changed here
+        Response.TransmitFile(filePath);
+        HttpContext.Current.ApplicationInstance.CompleteRequest();
+        Response.End();
+
+        //if (System.IO.File.Exists(filePath))
+        //{
+        //    //Process.Start(new ProcessStartInfo("excel.exe", " /select, " + filePath.Replace("\\\\", "\\")));
+        //    Process.Start(filePath);
+        //}
+
+    }
+
+
+}

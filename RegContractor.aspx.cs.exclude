@@ -1,0 +1,153 @@
+using System;
+using System.Collections;
+using System.ComponentModel;
+using System.Data;
+using System.Data.OleDb;
+using System.Drawing;
+using System.Web;
+using System.Web.SessionState;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using System.Web.UI.HtmlControls;
+using CommClass;
+using System.Configuration;
+using System.Web.Security;
+namespace EilCont
+{
+	/// <summary>
+	/// Summary description for RegContractor.
+	/// </summary>
+    public partial class RegContractor : System.Web.UI.Page
+	{
+		private string strSql,Errcode;
+		public ContComClass dataObj;
+	
+		private void Page_Load(object sender, System.EventArgs e)
+		{
+			dataObj=new ContComClass();
+			txtPass.Enabled=false;
+          //  Session["gUserId"] = "8047";
+          //  Session["gUserSCD"] = "130";
+
+			if (! IsPostBack)
+			{
+
+				//FillSiteDir();
+				//if(Session["gUserSCD"].ToString()!="30")
+                if (Session["USERID"] != null && Session["ROLE"] != null && "RCM".Equals(Session["ROLE"].ToString()))
+				{
+					FillSiteDir();
+				}
+				else
+				{
+					SetOff();
+ 					lblError.Text=dataObj.ErrorMsg("MSG1119");
+				}
+			}
+		}
+		protected void SetOff()
+		{
+			cmbSiteCd.Enabled=false;
+			cmbContrCd.Enabled=false;
+			txtPass.Enabled=false;
+			btSubmit.Enabled=false;
+		}
+ 
+		private void TestSessionStat()
+		{
+			//if ((string)Session["gUserId"] == null )
+            if (Session["USERID"] == null)            
+			{
+				Response.Redirect("SignOut.aspx");
+			}
+		}
+		private void FillSiteDir()
+		{
+	 		//strSql="select a.SITE_CD, a.SITE_NAME, a.SITE_LOC,a.SITE_NAME ||'-'||a.SITE_CD SiteDir from site_dir a,employee_dir b where a.empno_rcm='" +Session["gUserId"]+"' and a.SITE_OPN_CLOSED='O'  and a.EMPNO_RCM=b.EMPNO order by a.SITE_Name asc";
+            strSql = "select a.SITE_CD, a.SITE_NAME, a.SITE_LOC,a.SITE_NAME ||'-'||a.SITE_CD SiteDir from site_dir a,employee_dir b where a.empno_rcm='" + Session["USERID"] + "' and a.SITE_OPN_CLOSED='O'  and a.EMPNO_RCM=b.EMPNO order by a.SITE_Name asc";
+            
+		 	dataObj.populate_list(cmbSiteCd,strSql,"site_cd","SitedIR","SSD","Select Site Dir");
+		}
+
+		protected void cmbSiteCd_SelectedIndexChanged(object sender, System.EventArgs e)
+		{
+			if(!cmbSiteCd.SelectedItem.Value.Equals("SSD"))
+			{
+				
+   //             SELECT DISTINCT A.C_CODE , B.NAME  FROM RAB_TENDER_MASTER A ,rab_cont_dtl B
+   //WHERE A.C_CODE = B.C_CODE (+) AND A.JOB_NO IN (SELECT C.JOB_NO FROM JOB_DIR C WHERE C.JOB_OPN_CLOSED = 'O' AND C.SITE_CD = '4')
+                strSql = "SELECT DISTINCT A.C_CODE CONCODE, B.NAME  CONName FROM RAB_TENDER_MASTER A ,rab_cont_dtl B where A.C_CODE = B.C_CODE (+) AND A.JOB_NO IN (SELECT C.JOB_NO FROM JOB_DIR C WHERE C.JOB_OPN_CLOSED = 'O' AND C.SITE_CD ='" + cmbSiteCd.SelectedItem.Value + "')";
+	      
+         	dataObj.populate_list(cmbContrCd,strSql,"CONCODE","CONName","SC","Select Contractor");
+			}
+		}
+
+		protected void cmbContrCd_SelectedIndexChanged(object sender, System.EventArgs e)
+		{
+			if (!cmbContrCd.SelectedItem.Value.Equals("SC"))
+			{
+				txtPass.Enabled=true;
+			}
+		
+		}
+		private bool valid_pwd(string pwd)
+		{
+			bool flg;
+			if (! ((pwd=="") || (pwd==" ") || (pwd==null)))
+			{
+				if (pwd.Length<6)
+				{
+					flg=false;
+					Errcode="MSG1102";
+				}
+				else
+				{
+					flg=true;
+				}
+			}
+			else
+			{
+				flg=false;
+				Errcode="MSG1108";
+			}
+			return flg;
+		}
+        private void GetAudit(string pUserID, string pAction, string pSCD, string pModName)
+        {
+
+            string strSql = "INSERT INTO RAB_AUDIT_TRAIL (USER_ID, ACTION_TIME, ACTION_DATE,MACHINE_IP, MODULE_NAME, ACTION,site_cd) " +
+                "VALUES ( '" + pUserID.Trim() + "',to_char(sysdate,'hh24:mi:ss'),sysdate,'" + Request.UserHostAddress.ToString() + "','" + pModName.Trim() + "','" + pAction.Trim() + "','" + pSCD.Trim() + "')";
+            dataObj.execute_sql(strSql);
+
+        }
+		protected void btSubmit_Click(object sender, System.EventArgs e)
+		{
+
+			if (valid_pwd(txtPass.Text)==true)
+			{
+				string strUserID=String.Concat(cmbSiteCd.SelectedItem.Value,cmbContrCd.SelectedItem.Value);
+				string hashedPwd =FormsAuthentication.HashPasswordForStoringInConfigFile(txtPass.Text.Trim(),"SHA1");
+				strSql="insert into rab_cont_Login(SITE_CD, CONT_CD, LOGIN_ID, PASSWORD, CREATED_DATE, CREATED_BY) "+
+					"(select '" + cmbSiteCd.SelectedItem.Value + "','" + cmbContrCd.SelectedItem.Value.ToString() + "','"+strUserID+"','"+hashedPwd+"',sysdate,'"+Session["gUserId"]+"' from dual)";
+
+				dataObj.execute_sql(strSql);
+				if (dataObj.err_flag==true )
+				{
+					lblError.Text=dataObj.ErrorStr;
+				}
+				else
+				{
+					txtLoginID.Text=strUserID;
+					//GetAudit(Session["gUserId"].ToString(),"ADD",cmbContrCd.SelectedItem.Value.Trim(),"ContLoginID");	
+                    GetAudit(Session["USERID"].ToString(), "ADD", cmbContrCd.SelectedItem.Value.Trim(), "ContLoginID");	
+					lblError.Text=dataObj.ErrorMsg("MSG1103");
+				}
+			}
+			else
+			{
+				lblError.Text=dataObj.ErrorMsg(Errcode);
+			}
+		
+		}
+	}
+}

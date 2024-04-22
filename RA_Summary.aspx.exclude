@@ -1,0 +1,131 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeFile="RA_Summary.aspx.cs" Inherits="RA_Summary" %>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+<link href="css/Site.css" rel="stylesheet" type="text/css" />
+    <link href="css/EILDesign.css" rel="stylesheet" type="text/css" />
+    <link href="css/EILDesign.css" type="text/css" rel="stylesheet" />
+    <link href="css/ui-lightness/jquery-ui.css" rel="stylesheet" type="text/css" />
+    <link href="css/bootstrap.min.css" rel="stylesheet" />
+    <script src="js/jquery-1.9.1.js" type="text/javascript"></script>
+    <script src="js/jquery-ui-1.10.3.custom.min.js" type="text/javascript"></script>
+    <script src="js/jquery.numeric.min.js" type="text/javascript"></script>
+    <title></title>
+</head>
+<body>
+    <form id="form1" runat="server">
+    <table width="100%" class="myTable">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Summary
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Job Number
+                </td>
+                <td>
+                <asp:Label ID="lblJobNumber" runat="server" Font-Bold=true></asp:Label>
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged" Visible=false
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Tender Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddTenderNo" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddTenderNo_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+
+             <tr id="trItemsDetails" runat="server" visible="true">
+                <td colspan="2">
+                    <asp:Panel ID="pnlSORItems" runat="server">
+                        <asp:GridView ID="gvSORItems" runat="server" Font-Names="Arial" Font-Size="8pt" Width="99%"
+                            AutoGenerateColumns="False" BackColor="White" BorderWidth="1px" BorderColor="#CCCCCC"
+                            BorderStyle="None" AllowSorting="true">
+                            <Columns>
+                                <asp:TemplateField HeaderText="S.No " ItemStyle-HorizontalAlign="Center">
+                                    <ItemTemplate>
+                                        <%#Container.DataItemIndex+1 %>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:BoundField DataField="sdesc" HeaderText="SOR No" SortExpression="sdesc">
+                                    <HeaderStyle Width="10%" HorizontalAlign="Left" VerticalAlign="Middle" CssClass="myGridHeader">
+                                    </HeaderStyle>
+                                </asp:BoundField>
+                                <asp:TemplateField HeaderText="Sequence No">
+                                    <ItemTemplate>
+                                        <asp:HiddenField ID="hdReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                        <asp:HiddenField ID="hdSequenceNo" runat="server" Value='<%#Eval("SEQ_NO") %>' />
+                                        <asp:HiddenField ID="hdSortNumber" runat="server" Value='<%#Eval("SORT_NO") %>' />
+                                        <asp:HiddenField ID="hdItemRate" runat="server" Value='<%#Eval("ITEM_RATE") %>' />
+                                        <asp:HiddenField ID="hdItemQuantity" runat="server" Value='<%#Eval("HO_QTY") %>' />
+                                        <asp:HiddenField ID="hdSORTenderId" runat="server" Value='<%#Eval("TEND_SOR_ID") %>' />
+                                        <asp:Label ID="lblSequenceNo" runat="server" Text='<%#Eval("SEQ_NO") %>' Font-Bold="true"></asp:Label>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Description" ItemStyle-HorizontalAlign="Left">
+                                    <ItemTemplate>
+                                        <%#Eval("ldesc")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="UOM" ItemStyle-HorizontalAlign="Center" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("UOM")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Rate" ItemStyle-HorizontalAlign="Right" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("ITEM_RATE")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField> 
+                                <asp:TemplateField HeaderText="Awarded Qty" ItemStyle-HorizontalAlign="Right" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("HO_QTY")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                
+                                 
+                                
+                                                                
+                                <asp:TemplateField HeaderText="Total Executed Qty" ItemStyle-HorizontalAlign="Right" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("qty")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField> 
+                                     <asp:TemplateField HeaderText="Total awarded Value" ItemStyle-HorizontalAlign="Right" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("totHO")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                 <asp:TemplateField HeaderText="Total Executed Value" ItemStyle-HorizontalAlign="Right" ItemStyle-Font-Bold="true">
+                                    <ItemTemplate>
+                                        <%#Eval("totSite")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>                         
+                               
+                            </Columns>
+                            <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                            <EmptyDataTemplate>
+                                <b>No SOR Items.</b>
+                            </EmptyDataTemplate>
+                            <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                                VerticalAlign="Middle" CssClass="myGridHeader" />
+                            <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066"
+                                Font-Size="9pt" />
+                        </asp:GridView>
+                    </asp:Panel>
+                </td>
+            </tr>
+
+            </table>
+    </form>
+</body>
+</html>

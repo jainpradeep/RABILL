@@ -1,0 +1,206 @@
+﻿<%@ Page Language="VB" AutoEventWireup="false" CodeFile="RA_Users.aspx.vb" Inherits="RA_Users"
+    MasterPageFile="~/RA_MenuPage.master" %>
+
+<%@ Register Assembly="AjaxControlToolkit" Namespace="AjaxControlToolkit" TagPrefix="asp" %>
+<asp:Content ID="Content1" ContentPlaceHolderID="head" runat="Server">
+    <style type="text/css">
+        .label
+        {
+        }
+        .textbox
+        {
+        }
+    </style>
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" runat="Server">
+    <table width="100%" class="myTable" id="Table1" cellspacing="0" cellpadding="0">
+        <tr>
+            <td valign="bottom" align="center" style="height: 25px">
+                <asp:Label ID="lblDA" runat="server" CssClass="myPageHeader" Width="100%">User Authorization</asp:Label>
+            </td>
+        </tr>
+        <tr>
+            <td align="center">
+                <asp:Label ID="lblerror" runat="server" CssClass="label" ForeColor="red"></asp:Label>
+            </td>
+        </tr>
+    </table>
+    <table id="tablercm" runat="server" cellpadding="3" width="100%">
+        <tr align="center">
+            <td align="center">
+                <asp:Label ID="lbljn" runat="server" Text="Job No. :" CssClass="label" Width="120px"></asp:Label>
+                <asp:Label ID="txtjobcode" runat="server" CssClass="label"></asp:Label>-
+                <asp:Label ID="lblsubjobno" runat="server" CssClass="label"></asp:Label>
+            </td>
+        </tr>
+        <tr align="left">
+            <td align="center">
+                <asp:Label ID="lblsitecode" runat="server" Text="Site Code :" CssClass="label" Width="88px"></asp:Label>
+                <asp:TextBox ID="txtsitecode" runat="server" CssClass="textbox" Width="64px" Enabled="False"></asp:TextBox>
+                <asp:Label ID="lblsitename" runat="server" Text="Site Name :" CssClass="label" Width="88px"></asp:Label>
+                <asp:TextBox ID="txtsitename" runat="server" CssClass="textbox" Width="387px" Enabled="False"></asp:TextBox>
+            </td>
+        </tr>
+        <tr align="left">
+            <td align="center">
+                <asp:Label ID="lbltenderno" runat="server" Text="Tender No :" CssClass="label" Width="120px"></asp:Label>
+                <asp:DropDownList ID="ddltenerno" runat="server" AutoPostBack="True" Height="25px"
+                    Width="504px">
+                </asp:DropDownList>
+            </td>
+        </tr>
+        <tr>
+            <td align="center">
+                <asp:GridView ID="gvemployee" runat="server" AutoGenerateColumns="False" GridLines="Vertical"
+                    AllowPaging="True" CssClass="grid-view" OnRowEditing="onrowediting" OnRowCancelingEdit="onrowcancelingedit"
+                    OnRowUpdating="onrowupdating" OnRowDeleting="onrowdeleting" PageSize="15" OnPageIndexChanging="onpageindexchanging">
+                    <SelectedRowStyle CssClass="GridViewSelectedRowStyle" />
+                    <RowStyle CssClass="GridViewRowStyle" />
+                    <HeaderStyle CssClass="GridViewHeaderStyle" />
+                    <AlternatingRowStyle CssClass="GridViewAlternatingRowStyle" />
+                    <EmptyDataRowStyle CssClass="GridViewEmptyRowStyle " />
+                    <PagerStyle CssClass="GridViewPagerStyle" />
+                    <Columns>
+                        <asp:CommandField ShowEditButton="true" ItemStyle-ForeColor="blue" ItemStyle-HorizontalAlign="center"
+                            ItemStyle-Width="100px" />
+                        <asp:TemplateField HeaderText="Emp No.">
+                            <ItemTemplate>
+                                <asp:Label ID="lblempno" runat="server" Text='<%# bind("empno") %>'>
+                                </asp:Label>
+                            </ItemTemplate>
+                            <ItemStyle HorizontalAlign="Center" Wrap="False" Width="50px" />
+                        </asp:TemplateField>
+                        <asp:TemplateField HeaderText="Emp Name">
+                            <ItemTemplate>
+                                <asp:Label ID="lblempname" runat="server" Text='<%# bind("empname") %>'>
+                                </asp:Label>
+                            </ItemTemplate>
+                            <ItemStyle HorizontalAlign="left" Wrap="False" Width="150px" />
+                        </asp:TemplateField>
+                        <asp:TemplateField HeaderText="Emp Role">
+                            <ItemTemplate>
+                                <asp:DropDownList ID="ddlemprole" runat="server" Width="150px" SelectedValue='<%# bind("EMP_ROLE") %>'
+                                    Enabled="false">
+                                    <asp:ListItem Text="Billing Engineer" Value="BE"></asp:ListItem>
+                                    <asp:ListItem Text="Area Coordinator" Value="AC"></asp:ListItem>
+                                </asp:DropDownList>
+                            </ItemTemplate>
+                            <EditItemTemplate>
+                                <asp:DropDownList ID="ddlemproleedit" runat="server" Width="150px" SelectedValue='<%# bind("EMP_ROLE") %>'
+                                    BackColor="#FAF8CC">
+                                    <asp:ListItem Text="Billing Engineer" Value="BE"></asp:ListItem>
+                                    <asp:ListItem Text="Area Coordinator" Value="AC"></asp:ListItem>
+                                </asp:DropDownList>
+                            </EditItemTemplate>
+                            <ItemStyle HorizontalAlign="Center" Wrap="False" Width="170px" />
+                        </asp:TemplateField>
+                        <asp:TemplateField HeaderText="Delete?" ItemStyle-HorizontalAlign="Center" ItemStyle-Width="50px">
+                            <ItemTemplate>
+                                <span onclick="return confirm('Are you sure to delete the record')" style="text-align: center;">
+                                    <asp:LinkButton ID="lnkbDelete" runat="Server" Text="Delete" CommandName="Delete"
+                                        ForeColor="blue"></asp:LinkButton>
+                                </span>
+                            </ItemTemplate>
+                        </asp:TemplateField>
+                    </Columns>
+                    <EmptyDataTemplate>
+                        <asp:Label ID="emptyMessage" runat="server" Text="No Employees Found" Font-Bold="true"
+                            ForeColor="red" BorderStyle="none" />
+                    </EmptyDataTemplate>
+                </asp:GridView>
+            </td>
+        </tr>
+        <tr>
+            <td style="height: 20px; background-color: activecaption; font-weight: bold; color: white;
+                font-size: small" align="left" colspan="6">
+                <span id="spanOrderDetails" runat="server">Add Site Employee</span>
+            </td>
+        </tr>
+        <tr>
+            <td align="center">
+                <asp:LinkButton ID="btnAdd" runat="server" Text="Add New Employee" ForeColor="blue"
+                    Width="144px" />
+            </td>
+        </tr>
+    </table>
+    <asp:Button runat="server" ID="Button3" Style="display: none" />
+    <asp:ModalPopupExtender ID="ModalPopupExtender1" runat="server" TargetControlID="Button3"
+        PopupControlID="div1" BackgroundCssClass="popUpStyle" PopupDragHandleControlID="panel6"
+        DropShadow="true" CancelControlID="btncancel" />
+    <div id="div1" style="background-color: White; border-width: thin; border-style: solid;
+        border-color: Black; display: none">
+        <table id="Table2" runat="server">
+            <tr>
+                <td>
+                    <asp:Panel runat="Server" ID="panel6" Width="100%">
+                        <table id="Table3" runat="server" width="100%" border="0">
+                            <tr>
+                                <td align="center" class="labelpageheading">
+                                    <asp:Label ID="Label4" Text="Add Employee" runat="Server" />
+                                </td>
+                                <td align="right" style="width: 20px">
+                                    <asp:ImageButton runat="server" ID="btncancel" ImageUrl="~/images/cross.png" ForeColor="White"
+                                        Height="20px" ImageAlign="AbsMiddle" Width="20px" ToolTip="Close" />
+                                </td>
+                            </tr>
+                        </table>
+                    </asp:Panel>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div style="overflow: auto; max-height: 300px; width: 380px">
+                        <asp:UpdatePanel ID="upaddemp" runat="server">
+                            <ContentTemplate>
+                                <asp:GridView ID="gvaddemp" runat="server" AutoGenerateColumns="False" GridLines="Vertical"
+                                    CssClass="grid-view">
+                                    <SelectedRowStyle CssClass="GridViewSelectedRowStyle" />
+                                    <RowStyle CssClass="GridViewRowStyle" />
+                                    <HeaderStyle CssClass="GridViewHeaderStyle" />
+                                    <AlternatingRowStyle CssClass="GridViewAlternatingRowStyle" />
+                                    <EmptyDataRowStyle CssClass="GridViewEmptyRowStyle " />
+                                    <PagerStyle CssClass="GridViewPagerStyle" />
+                                    <Columns>
+                                        <asp:TemplateField HeaderText="Emp No.">
+                                            <ItemTemplate>
+                                                <asp:Label ID="lblempno" runat="server" Text='<%# bind("empno") %>'>
+                                                </asp:Label>
+                                            </ItemTemplate>
+                                            <ItemStyle HorizontalAlign="Center" Wrap="False" Width="50px" />
+                                        </asp:TemplateField>
+                                        <asp:TemplateField HeaderText="Emp Name">
+                                            <ItemTemplate>
+                                                <asp:Label ID="lblempname" runat="server" Text='<%# bind("empname") %>'>
+                                                </asp:Label>
+                                            </ItemTemplate>
+                                            <ItemStyle HorizontalAlign="left" Wrap="False" Width="150px" />
+                                        </asp:TemplateField>
+                                        <asp:TemplateField HeaderText="Emp Role">
+                                            <ItemTemplate>
+                                                <asp:DropDownList ID="ddlemprole" runat="server" Width="150px">
+                                                    <asp:ListItem Text="" Value="Z" Selected="true"></asp:ListItem>
+                                                    <asp:ListItem Text="Billing Engineer" Value="BE"></asp:ListItem>
+                                                    <asp:ListItem Text="Area Coordinator" Value="AC"></asp:ListItem>
+                                                </asp:DropDownList>
+                                            </ItemTemplate>
+                                            <ItemStyle HorizontalAlign="Center" Wrap="False" Width="170px" />
+                                        </asp:TemplateField>
+                                    </Columns>
+                                    <EmptyDataTemplate>
+                                        <asp:Label ID="emptyMessage" runat="server" Text="No Records Found" Font-Bold="true"
+                                            ForeColor="red" BorderStyle="none" />
+                                    </EmptyDataTemplate>
+                                </asp:GridView>
+                            </ContentTemplate>
+                        </asp:UpdatePanel>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td align="right">
+                    <asp:Button ID="btnSubmit" runat="server" Text="Submit" Width="70px" CssClass="button" />
+                </td>
+            </tr>
+        </table>
+    </div>
+</asp:Content>

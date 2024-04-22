@@ -1,0 +1,292 @@
+﻿<%@ Page Title="" Language="C#" MasterPageFile="~/RA_MenuPage.master" AutoEventWireup="true" CodeFile="RA_Add_Quantity.aspx.cs" Inherits="RA_Add_Quantity" %>
+<%@ Register Assembly="AjaxControlToolkit" Namespace="AjaxControlToolkit" TagPrefix="asp" %>
+<asp:Content ID="Content1" ContentPlaceHolderID="head" Runat="Server">
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" Runat="Server">
+    
+    <asp:Button ID="btn_DummyForAssignRackPopup_Control" runat="server" Text="Button"
+        CssClass="hidden" />
+    <asp:ModalPopupExtender ID="ModalPopupExtenderForAssignRack" runat="server" PopupControlID="pnl_addQty_popup"
+        TargetControlID="btnAddQty" CancelControlID="btnCancel"
+        DropShadow="true" RepositionMode="RepositionOnWindowResizeAndScroll">
+    </asp:ModalPopupExtender>
+    <asp:Panel ID="pnl_addQty_popup" Style="display: none; background: White; border: 3px solid;
+        border-color: Gray; overflow: scroll; " runat="server">
+        <div style="margin-left: auto; margin-right: auto; margin-right: 20px; margin-left: 10px;width:600px;height:300px;" >
+            <table cellpadding="5" cellspacing="5">
+                 <tr>
+                    <td class="myGridHeader" colspan="2" >
+                        Add New Item
+                    </td>
+                   
+                </tr>
+                 <tr>
+                    <td class="myLabel">
+                        SOR Number
+                    </td>
+                    <td>
+                        <asp:Label ID="lblSorNumber" CssClass="myInput" runat="server" Font-Bold="true"></asp:Label>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="myLabel">
+                        Discipline
+                    </td>
+                    <td>
+                        <asp:DropDownList ID="ddDepartment" CssClass="myInput" runat="server" Font-Bold="true" AutoPostBack="true" OnSelectedIndexChanged="ddDepartment_SelectedIndexChanged"></asp:DropDownList>
+                    </td>
+                </tr>
+
+                <tr>
+                <td colspan="2" class="myLabel">
+                Standard Item&nbsp;&nbsp;<asp:RadioButton ID="rbStandard" runat="server" GroupName="items" OnCheckedChanged="rbStandard_CheckedChanged" AutoPostBack="true" />
+                &nbsp;&nbsp;Others Item&nbsp;&nbsp;<asp:RadioButton ID="rbOthers" runat="server" GroupName="items" OnCheckedChanged="rbOthers_CheckedChanged" AutoPostBack="true" />
+                </td>
+                </tr>
+                <tr>
+                <td colspan="2">
+                <table id="tblItems" runat="server" visible=false>
+                <tr>
+                    <td class="myLabel">
+                        Sequence Number
+                    </td>
+                    <td>
+                        <asp:TextBox ID="txtSequenceNumber" runat="server" CssClass="myInput" MaxLength="50" Width="300" Visible=false></asp:TextBox>
+
+                        <asp:DropDownList ID="ddSequenceNumber" CssClass="myInput"  runat="server" AutoPostBack="true" OnSelectedIndexChanged="ddSequenceNumber_SelectedIndexChanged"></asp:DropDownList>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Activity Description
+                    </td>
+                    <td>
+                        <asp:TextBox ID="txtActivityDesc" runat="server" CssClass="myInput" MaxLength="150" Width="300" Visible=false></asp:TextBox>
+                        <asp:Label ID="lblActivityDesc" runat="server" CssClass="myInput"></asp:Label>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Quantity
+                    </td>
+                    <td>
+                        <asp:TextBox ID="txtQuantity" runat="server" CssClass="myInput" MaxLength="10" onkeypress='return event.charCode >= 48 && event.charCode <= 57'></asp:TextBox>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Unit Of Measure
+                    </td>
+                    <td>
+                        <asp:TextBox ID="txtItemUOM" CssClass="myInput"  runat="server" MaxLength="10" Visible="true"></asp:TextBox>
+                        <asp:DropDownList ID="ddUOM" runat="server" CssClass="myInput" AutoPostBack="false" Visible="false">
+
+                    </asp:DropDownList>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Item Rate
+                    </td>
+                    <td>
+                        <asp:TextBox ID="txtItemRate" runat="server" CssClass="myInput" MaxLength="10" onkeypress='return event.charCode >= 48 && event.charCode <= 57'></asp:TextBox>
+                    </td>
+                </tr>
+                
+                
+
+                </table>
+                
+                </td>
+                </tr>
+                <tr>
+                <td colspan="2">&nbsp;</td>
+                </tr>              
+      
+                <tr>
+                    <td class="myInput" align="center" colspan="2">
+                        <table>
+                            <tr>
+                                <td align="center">
+                                    <asp:Button ID="btnCancel" runat="server" Text="Close" Font-Bold="true" />
+                                    &nbsp;&nbsp;&nbsp;
+                                    <asp:Button ID="btnAddQtySubmit" runat="server" Text="Save" Font-Bold="true" OnClick="btnAddQtySubmit_Click" />
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </asp:Panel>
+    <br />
+
+
+<asp:Panel ID="pnlSelection" runat="server">
+        <table width="100%" class="myTable">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Add New SOR Item
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Job Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Tender Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddTenderNo" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddTenderNo_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>            
+            <tr id="trSor" runat="server" visible="false">
+                <td colspan="2">
+                    <asp:GridView ID="gvSOR" runat="server" Font-Names="Arial" Font-Size="9pt" Width="95%"
+                        AutoGenerateColumns="False" BackColor="White" BorderWidth="1px" CellPadding="0"
+                        BorderColor="#CCCCCC" BorderStyle="None" OnRowCommand="gvSOR_RowCommand" OnSelectedIndexChanged="gvSOR_SelectedIndexChanged"
+                        OnRowDataBound="gvSOR_RowDataBound">
+                        <Columns>
+                            
+                            <asp:TemplateField HeaderText="S.No "  ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Container.DataItemIndex+1 %>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Sub Job Number" >
+                                <ItemTemplate>
+                                    <asp:HiddenField ID="hdReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                    <asp:HiddenField ID="hdTenderNo" runat="server" Value='<%#Eval("TENDER_NO") %>' />
+                                    <asp:HiddenField ID="hdPartNo" runat="server" Value='<%#Eval("PART_NO") %>' />
+                                    <asp:HiddenField ID="hdSorNumber" runat="server" Value='<%#Eval("SOR_NO") %>' />
+                                    <asp:HiddenField ID="hdTenderSorId" runat="server" Value='<%#Eval("TEND_SOR_ID") %>' />
+                                    <asp:Label ID="lblSubJobNo" runat="server" Text='<%#Eval("SUB_JOB") %>'></asp:Label>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Unit" HeaderStyle-Width="6%" ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Eval("UNIT_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Tender Number" >
+                                <ItemTemplate>
+                                    <%#Eval("TENDER_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Part Number">
+                                <ItemTemplate>
+                                    <%#Eval("PART_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="SOR Number" >
+                                <ItemTemplate>
+                                    <%#Eval("SOR_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Contractor Code" >
+                                <ItemTemplate>
+                                    <%#Eval("C_CODE")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="LOI Number"  ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Eval("LOI_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="LOI Date" >
+                                <ItemTemplate>
+                                    <%#Eval("LOI_DATE")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            
+                            <asp:CommandField ShowHeader="True" ShowSelectButton="True" />
+                        </Columns>
+                        <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                        <EmptyDataTemplate>
+                            <b>No SOR.</b>
+                        </EmptyDataTemplate>
+                        <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                            VerticalAlign="Middle" CssClass="myGridHeader" />
+                        <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066" />
+                        <AlternatingRowStyle BackColor="#e5eff8" BorderWidth="1px" />
+                    </asp:GridView>
+                </td>
+            </tr>
+                <tr>
+                <td colspan="2">
+                    <br />
+                    <asp:Panel ID="pnlSORItems" runat="server" Visible="false">
+                        <asp:GridView ID="gvSORItems" runat="server" Font-Names="Arial" Font-Size="9pt" Width="95%"
+                            AutoGenerateColumns="False" BackColor="White" BorderWidth="1px" CellPadding="0"
+                            BorderColor="#CCCCCC" BorderStyle="None" >
+                            <Columns>
+                                <asp:TemplateField HeaderText="S.No " ItemStyle-HorizontalAlign="Center">
+                                    <ItemTemplate>
+                                        <%#Container.DataItemIndex+1 %>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Sequence No">
+                                    <ItemTemplate>
+                                        <asp:HiddenField ID="hdReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                        <asp:HiddenField ID="hdSequenceNo" runat="server" Value='<%#Eval("SEQ_NO") %>' />
+                                        <asp:HiddenField ID="hdSortNumber" runat="server" Value='<%#Eval("SORT_NO") %>' />
+                                        <asp:HiddenField ID="hdItemRate" runat="server" Value='<%#Eval("ITEM_RATE") %>' />
+                                        
+                                        
+                                        <asp:Label ID="lblSequenceNo" runat="server" Text='<%#Eval("SEQ_NO") %>' Font-Bold=true></asp:Label>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Description" ItemStyle-HorizontalAlign="Left">
+                                    <ItemTemplate>
+                                        <%#Eval("ldesc")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                        
+                                <asp:TemplateField HeaderText="UOM" ItemStyle-HorizontalAlign="Center" ItemStyle-Font-Bold=true>
+                                    <ItemTemplate>
+                                        <%#Eval("UOM")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Rate" ItemStyle-HorizontalAlign="Right"  ItemStyle-Font-Bold=true>
+                                    <ItemTemplate>
+                                        <%#Eval("ITEM_RATE")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Quantity" ItemStyle-HorizontalAlign="Right"  ItemStyle-Font-Bold=true>
+                                    <ItemTemplate>
+                                        <%#Eval("HO_QTY")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>                                
+                            </Columns>
+                            <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                            <EmptyDataTemplate>
+                                <b>No SOR Items.</b>
+                            </EmptyDataTemplate>
+                            <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                                VerticalAlign="Middle" CssClass="myGridHeader" />
+                            <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066" />
+                            <AlternatingRowStyle BackColor="#e5eff8" BorderWidth="1px" />
+                        </asp:GridView>
+
+                        <center>
+                        <asp:Button ID="btnAddQty" runat="server" Text="Add New SOR Item" Font-Bold="true" OnClick="btnAddQty_Click"/>
+                        </center>
+
+                    </asp:Panel>
+                </td>
+            </tr>
+            </table>
+            </asp:Panel>
+
+</asp:Content>
+

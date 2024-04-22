@@ -1,0 +1,26 @@
+RA_Populate_job_data.aspx
+RA_Merge_Bills.aspx
+RA_Users.aspx
+RA_Add_User.aspx
+RA_Generate_Bill_sample.aspx	
+
+
+RAB_POPULATE_TENDER_DATA
+rab_upd_rec_new
+rab_upd_rec
+
+
+
+//////////////
+
+to be added
+
+/////////////
+
+CPMSTENDERS.VW_C_FOA_ITEMS_SITEMS
+icms_cba.cba_tender
+
+ppms.tenderschedule ----- If Split activity is applicable at this stage then this would be required
+
+
+ppms.tenderschedule

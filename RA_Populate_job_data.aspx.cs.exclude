@@ -1,0 +1,118 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+
+public partial class RA_Populate_job_data : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null && !"VEND".Equals(Session["ROLE"].ToString()))
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());
+            }
+            else if (Session["USERID"] != null && Session["ROLE"] != null && "VEND".Equals(Session["ROLE"].ToString()))
+            {
+                Response.Redirect("Default.aspx");
+            }
+            else
+            {
+                Response.Redirect("Login.aspx");
+            }
+        }
+    }
+
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("BE".Equals(userRole) || "AC".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE='Y'  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM and site_opn_closed=:site_opn_closed) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+            paramList.Add("site_opn_closed", "O");
+            
+        }
+
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        //if (!"".Equals(ddJobNumber.SelectedValue))
+        //{
+            
+        //}
+        //else
+        //{
+        //    Common.Show("Please select Job Number");
+        //}
+    }
+
+    protected void btnPopulateData_Click(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+//            //check if data is already populated or not
+//            StringBuilder sbQuery = new StringBuilder();
+//            sbQuery.Append(@"select distinct job_no
+//                                        from RAB_TENDER_MASTER where job_no=:job_no");
+//            Dictionary<string, string> paramList = new Dictionary<string, string>();
+//            paramList.Add("job_no", ddJobNumber.SelectedValue);
+//            string jobNumber = objDB.executeScalar(sbQuery.ToString(), paramList);
+//            if (jobNumber.Equals(ddJobNumber.SelectedValue))
+//            {
+//                Common.Show("ICMS CBA data has already been populated for this Job Number, kindly select another Job No");
+//            }
+//            else
+//            {
+                try
+                {
+                    populateJobData(ddJobNumber.SelectedValue);
+                    Common.Show("Job Data populated succesfully");
+                }
+                catch (Exception err)
+                {
+                    Common.Show("Error in populationg the data");
+                }
+            //}
+        }
+        else
+        {
+            Common.Show("Please select Job Number");
+        }
+    }
+
+    public void populateJobData(string jobNumber)
+    {
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("t_jobno", jobNumber);
+        paramList.Add("t_empno", Session["USERID"].ToString());
+        objDB.executeProcedure("WEBCONS.rab_populate_tender_data", paramList);
+        updateRecords();
+    }
+    public void updateRecords()
+    {
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+       // objDB.executeProcedure("WEBCONS.rab_upd_rec", paramList);        
+        objDB.executeProcedure("WEBCONS.rab_upd_rec_new", paramList);        
+    }
+}

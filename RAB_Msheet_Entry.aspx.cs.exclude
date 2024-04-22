@@ -1,0 +1,876 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Collections;
+using ClosedXML.Excel;
+using System.Data;
+using System.IO;
+
+public partial class RAB_Msheet_Entry : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    Double totalMeasurementQty = 0;
+    string referenceId, sequenceNumber, activityId, tenderSorId, runningSrNo, jobno, tNo, billID;
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && (Session["ROLE"] != null && ("VEND".Equals(Session["ROLE"].ToString()))))
+            {
+                //Get the value from Request and bind the measurement sheet detail                
+                referenceId=Request.QueryString["refId"].ToString();
+                sequenceNumber=Request.QueryString["seqNo"].ToString();
+                lblSeqNumber.Text = sequenceNumber;
+                activityId=Request.QueryString["actId"].ToString();
+                tenderSorId=Request.QueryString["tendSorId"].ToString();
+                runningSrNo=Request.QueryString["RSno"].ToString();
+                jobno = Request.QueryString["jobno"].ToString();
+                tNo = Request.QueryString["tNo"].ToString();
+                billID = Request.QueryString["billID"].ToString();
+
+                bindMeasurementSheet(referenceId, sequenceNumber, activityId, tenderSorId, runningSrNo);
+                //Setting Hidden values
+                hdreferenceId.Value=referenceId;
+                hdactivityId.Value=activityId;
+                hdtenderSorId.Value=tenderSorId;
+                hdrunningSrNo.Value = runningSrNo;
+                hdJobNumber.Value = jobno;
+                hdTenderNo.Value = tNo;
+            }
+            else
+            {
+                Response.Redirect("Login.aspx");
+            }
+        }
+    }
+
+    protected void bindMeasurementSheet(string referenceId, string sequenceNumber, string activityId, string tenderSorId, string runningSrNo)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append("select ID,REF_ID, SEQ_NO, TENDER_SOR_ID, ACT_SEQ, RUN_SL_NO, ")
+        .Append(" RUN_SL_DATE, ACTIVTY_DESC, UNIT, REMARKS, QUANTITY, LENGTH, ")
+        .Append(" BREADTH, HEIGHT, UNIT4, UNIT5, UNIT6, unit_Weight, CALCULATED_QTY, ACTIVITY_ORDER,CALCULATED_QTY ")
+        .Append(" FROM RAB_TENDER_MSHEET ")
+        .Append(" WHERE ")
+        .Append(" REF_ID=:REF_ID ")
+        .Append(" AND SEQ_NO=:SEQ_NO ")
+        .Append(" AND ACT_SEQ=:ACT_SEQ ")
+        .Append(" AND TENDER_SOR_ID=:TENDER_SOR_ID ");
+        if (runningSrNo.Length > 0)
+        {
+            sbQuery.Append(" AND RUN_SL_NO=:RUN_SL_NO ");
+            paramList.Add("RUN_SL_NO", runningSrNo);
+        }
+        else
+        {
+            sbQuery.Append(" AND RUN_SL_NO is null ");
+        }
+        sbQuery.Append(" ORDER BY id");
+
+        paramList.Add("REF_ID", referenceId);
+        paramList.Add("SEQ_NO", sequenceNumber);
+        paramList.Add("ACT_SEQ", activityId);
+        paramList.Add("TENDER_SOR_ID", tenderSorId);
+
+        objDB.bindGridView(gvMeasurementSheet, sbQuery.ToString(), paramList);
+
+        //Calculate Sum and display in Footer Row
+
+        if (gvMeasurementSheet.Rows.Count > 0)
+        {
+            btnDeleteMSheet.Visible = true;
+        }
+        else
+        {
+            btnDeleteMSheet.Visible = false;
+        }
+    }
+
+    protected void gvMeasurementSheet_RowDataBound(object sender, GridViewRowEventArgs e)
+    {
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            totalMeasurementQty += Convert.ToDouble(DataBinder.Eval(e.Row.DataItem, "CALCULATED_QTY"));
+
+            //Hiding Delete button from other than Contractor
+            HiddenField hdMSheetRSerialNum = new HiddenField();
+            hdMSheetRSerialNum = (HiddenField)e.Row.FindControl("hdMSheetRSerialNum");
+            string runningSrNumber = hdMSheetRSerialNum.Value;
+
+            //if (runningSrNumber.Length > 0 && hdCont_Frozen.Value.Equals("Y"))
+            //{
+            //    e.Row.Cells[10].Text = "";
+            //}
+
+
+            if (!Session["ROLE"].Equals("VEND"))
+            {
+                e.Row.Cells[10].Visible = false;
+            }
+
+            AddConfirmDelete((GridView)sender, e);
+        }
+        if (e.Row.RowType == DataControlRowType.Footer)
+        {
+            Label lblTotalQty = (Label)e.Row.FindControl("lblTotalQty");
+            lblTotalQty.Text = totalMeasurementQty.ToString();
+        }
+    }
+
+    /// <summary>
+    /// If the gridview has a command field where showdeletebutton is true, then 
+    /// it add a confirm message. 
+    /// This function should be called in the RowDataBound event
+    /// </summary>
+
+    public static void AddConfirmDelete(GridView gv, GridViewRowEventArgs e)
+    {
+        if (e.Row.RowType == DataControlRowType.DataRow)
+        {
+            foreach (DataControlField dcf in gv.Columns)
+            {
+                if (dcf.ToString() == "CommandField")
+                {
+                    if (((CommandField)dcf).ShowDeleteButton == true)
+                    {
+                        e.Row.Cells[gv.Columns.IndexOf(dcf)].Attributes
+                        .Add("onclick", "return confirm(\"Are you sure?\")");
+                    }
+                }
+            }
+        }
+    }//
+
+    protected void gvMeasurementSheet_RowDeleting(object sender, GridViewDeleteEventArgs e)
+    {
+        GridViewRow row = (GridViewRow)gvMeasurementSheet.Rows[e.RowIndex];
+        HiddenField hdMSheetRSerialNum = new HiddenField();
+        hdMSheetRSerialNum = (HiddenField)row.FindControl("hdMSheetRSerialNum");
+        HiddenField hdMSheetID = new HiddenField();
+        hdMSheetID = (HiddenField)row.FindControl("hdMSheetID");
+        HiddenField hdMSheetRefId = new HiddenField();
+        hdMSheetRefId = (HiddenField)row.FindControl("hdMSheetRefId");
+        HiddenField hdMSheetSeqNo = new HiddenField();
+        hdMSheetSeqNo = (HiddenField)row.FindControl("hdMSheetSeqNo");
+        HiddenField hdMSheetTSorId = new HiddenField();
+        hdMSheetTSorId = (HiddenField)row.FindControl("hdMSheetTSorId");
+        HiddenField hdMSheetActSeq = new HiddenField();
+        hdMSheetActSeq = (HiddenField)row.FindControl("hdMSheetActSeq");
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        StringBuilder sbDeleteQuery = new StringBuilder();
+        sbDeleteQuery.Append("DELETE FROM RAB_TENDER_MSHEET WHERE id=:id ");
+        paramList.Add("id", hdMSheetID.Value);
+        if (hdMSheetRSerialNum.Value.Length > 0)
+        {
+            sbDeleteQuery.Append(" AND RUN_SL_NO=:RUN_SL_NO ");
+            paramList.Add("RUN_SL_NO", hdMSheetRSerialNum.Value);
+        }
+
+        if (objDB.executeNonQuery(sbDeleteQuery.ToString(), paramList) > 0)
+        {
+            //Updating tender_ra_bill table
+            try
+            {
+                Dictionary<string, string> paramUpdateList = new Dictionary<string, string>();
+                paramUpdateList.Add("t_refid", hdMSheetRefId.Value);
+                paramUpdateList.Add("t_ccode", Session["USERID"].ToString());
+
+                paramUpdateList.Add("t_tend_sor_id", hdMSheetTSorId.Value);
+                paramUpdateList.Add("t_act_seq", hdMSheetActSeq.Value);
+
+                paramUpdateList.Add("t_SEQ_NO", hdMSheetSeqNo.Value);
+                paramUpdateList.Add("t_RUN_SL_NO", hdMSheetRSerialNum.Value);
+                objDB.executeProcedure("WEBCONS.rab_msheet_TBill_Update", paramUpdateList);
+            }
+            catch (Exception err)
+            { }
+            gvMeasurementSheet.EditIndex = -1;
+            Common.Show("Deleted Successfully");
+            //Update RAB_TENDER_BILL 
+            bindMeasurementSheet(hdMSheetRefId.Value, hdMSheetSeqNo.Value, hdMSheetActSeq.Value, hdMSheetTSorId.Value, hdMSheetRSerialNum.Value);
+        }
+    }
+
+    protected void btnAddItem_Click(object sender, EventArgs e)
+    {
+        string errorMsg = "";
+        
+        if (errorMsg.Length > 0)
+        {
+            Common.Show(errorMsg);            
+        }
+        else
+        {
+            StringBuilder sbInsertQry = new StringBuilder();
+            int recordInserted = 0;
+            sbInsertQry.Append("INSERT INTO RAB_TENDER_MSHEET ")
+                .Append(" ( ")
+                .Append(" REF_ID, SEQ_NO,  ACT_SEQ, RUN_SL_NO,  ACTIVTY_DESC, UNIT, REMARKS, QUANTITY, LENGTH, BREADTH, HEIGHT,  ADDED_BY, ADDED_ON,TENDER_SOR_ID,unit_Weight ")
+                .Append(" ) ")
+                .Append(" values ")
+                .Append(" ( ")
+                .Append(" :REF_ID, :SEQ_NO, :ACT_SEQ, :RUN_SL_NO,  :ACTIVTY_DESC, :UNIT, :REMARKS, :QUANTITY, :LENGTH, :BREADTH, :HEIGHT,  :ADDED_BY, sysdate,:TENDER_SOR_ID,:unit_Weight ")
+                .Append(" ) ");
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            //paramList.Add("REF_ID", hdReferenceId.Value);
+            //paramList.Add("SEQ_NO", hdSequenceNumber.Value);
+            //paramList.Add("ACT_SEQ", hdActivityId.Value);
+            //paramList.Add("RUN_SL_NO", hdRunningSerailNo.Value);
+            //paramList.Add("ACTIVTY_DESC", txtActDesc.Text);
+            //paramList.Add("UNIT", ddUnit.SelectedValue.ToString());
+            //paramList.Add("REMARKS", txtItemRemarks.Text);
+            //paramList.Add("QUANTITY", txtQuantity.Text);
+            //paramList.Add("LENGTH", txtLength.Text);
+            //paramList.Add("BREADTH", txtBreadth.Text);
+            //paramList.Add("HEIGHT", txtHeight.Text);
+            //paramList.Add("ADDED_BY", Session["USERID"].ToString());
+            //paramList.Add("TENDER_SOR_ID", hd_tenderSorId.Value);
+            //paramList.Add("unit_Weight", txtUnitWeight.Text);
+            recordInserted = objDB.executeNonQuery(sbInsertQry.ToString(), paramList);
+
+            if (recordInserted > 0)
+            {
+                //Updating RAB_TENDER_BILL table
+                try
+                {
+                    Dictionary<string, string> paramUpdateList = new Dictionary<string, string>();
+                    //paramUpdateList.Add("t_refid", hdReferenceId.Value);
+                    //paramUpdateList.Add("t_ccode", Session["USERID"].ToString());
+                    //paramUpdateList.Add("t_tend_sor_id", hd_tenderSorId.Value);
+                    //paramUpdateList.Add("t_act_seq", hdActivityId.Value);
+                    //paramUpdateList.Add("t_SEQ_NO", hdSequenceNumber.Value);
+                    //paramUpdateList.Add("t_RUN_SL_NO", hdRunningSerailNo.Value);
+                    objDB.executeProcedure("WEBCONS.rab_msheet_TBill_Update", paramUpdateList);
+                }
+                catch (Exception err)
+                { }
+                Common.Show("Activity added succesfully");
+                //bindMeasurementSheet(hdReferenceId.Value, hdSequenceNumber.Value, hdActivityId.Value, hd_tenderSorId.Value, hdRunningSerailNo.Value);               
+            }
+        }
+    }
+
+    protected void btnCancel_Click(object sender, EventArgs e)
+    {
+        string someScript = "Close with Refresh";
+        if ((!ClientScript.IsStartupScriptRegistered(this.GetType(), someScript)))
+        {
+            ClientScript.RegisterStartupScript(this.GetType(), someScript, "javascript:Done('" + hdJobNumber.Value + "','" + hdTenderNo.Value + "','N');", true);
+        }
+    }
+
+
+    protected void btnSimpleClose_Click(object sender, EventArgs e)
+    {
+        this.ClientScript.RegisterClientScriptBlock(this.GetType(), "Close", "window.close()", true);
+    }
+
+    public void getWorkSheetNames(object sender, EventArgs e)
+    { 
+       //Save the uploaded Excel file.       
+
+        string newFile = "";
+        int newLength = 0;
+        string newFileExtn = "";       
+
+        if (!fuMSheet.FileName.Trim().Equals(""))
+        {
+            newFile = fuMSheet.PostedFile.FileName.ToString();
+            newLength = newFile.LastIndexOf(".");
+            newFileExtn = newFile.Substring(newLength, newFile.Length - newLength);
+        }
+
+        if (!".XLSX".Equals(newFileExtn.ToUpper()))
+        {
+            Common.Show("Error: Only .xlsx files are allowed, other formats are not supported.");
+        }
+        else
+        {
+            //  string filePath = Server.MapPath("~/Msheets/") + Path.GetFileName(fuMSheet.PostedFile.FileName);
+            string filePath = Server.MapPath("~/Msheets/") + Session["USERID"].ToString() + " " + DateTime.Now.ToString().Replace(":", "").Replace("/", "") + newFileExtn;
+            fuMSheet.SaveAs(filePath);
+            hdFilePath.Value = filePath;
+
+            Dictionary<int, string> dSheets = new Dictionary<int, string>();
+            dSheets.Add(0, "--Select--");
+
+            using (XLWorkbook workBook = new XLWorkbook(filePath))
+            {
+                //Read the first Sheet from Excel file.
+                //IXLWorksheet workSheet = workBook.Worksheet(1);
+               
+                //ddWorkSheet.Items.Insert(0, "--Select--");
+                //ddWorkSheet.Items.Insert(0, new ListItem("", "--Select--"));
+                
+                for (int i = 1; i <= workBook.Worksheets.Count; i++)
+                {
+                    //ddWorkSheet.Items.Insert(workBook.Worksheets.Worksheet(i).Position, workBook.Worksheets.Worksheet(i).Name.ToString());                    
+                    //ddWorkSheet.Items.Insert(workBook.Worksheets.Worksheet(i).Position, new ListItem(workBook.Worksheets.Worksheet(i).Position.ToString(), workBook.Worksheets.Worksheet(i).Name.ToString()));                    
+                    dSheets.Add(i, workBook.Worksheets.Worksheet(i).Name.ToString());
+                }                
+            }
+
+            ddWorkSheet.DataTextField = "Value";
+            ddWorkSheet.DataValueField = "Key";
+            ddWorkSheet.DataSource = dSheets;
+            ddWorkSheet.DataBind();
+
+            if (ddWorkSheet.Items.Count > 0)
+            {
+                btnUpload.Visible = true;
+            }
+            else
+            {
+                btnUpload.Visible = false;
+            }
+        }
+
+    }
+
+    public void ImportExcel(object sender, EventArgs e)
+    {
+        //Save the uploaded Excel file.       
+
+        //string newFile = "";
+        //int newLength = 0;
+        //string newFileExtn = "";
+
+        //if (!fuMSheet.FileName.Trim().Equals(""))
+        //{
+        //    newFile = fuMSheet.PostedFile.FileName.ToString();
+        //    newLength = newFile.LastIndexOf(".");
+        //    newFileExtn = newFile.Substring(newLength, newFile.Length - newLength);
+        //}
+
+        //if (!".XLSX".Equals(newFileExtn.ToUpper()))
+        //{
+        //    Common.Show("Error: Only .xlsx files are allowed, other fomats are not supported.");
+        //}
+        if ("0".Equals(ddWorkSheet.SelectedValue))
+        {
+            Common.Show("Error: Please select Worksheet name.");
+        }
+        else
+        {
+           // string filePath = Server.MapPath("~/Msheets/") + Session["USERID"].ToString() + " " + DateTime.Now.ToString().Replace(":", "").Replace("/", "") + newFileExtn;
+           // fuMSheet.SaveAs(filePath);
+            string filePath = hdFilePath.Value;
+            //Open the Excel file using ClosedXML.
+            using (XLWorkbook workBook = new XLWorkbook(filePath))
+            {
+                //Read the first Sheet from Excel file.
+                //IXLWorksheet workSheet = workBook.Worksheet(1);
+                IXLWorksheet workSheet = workBook.Worksheet(ddWorkSheet.SelectedItem.ToString());
+
+                //Create a new DataTable.
+                DataTable dt = new DataTable();
+
+                //Loop through the Worksheet rows.
+                bool firstRow = true;
+                foreach (IXLRow row in workSheet.Rows())
+                {
+                    // Use the first row to add columns to DataTable.
+                    if (firstRow)
+                    {
+                        foreach (IXLCell cell in row.Cells())
+                        {
+                            dt.Columns.Add(cell.Value.ToString());
+                        }
+                        firstRow = false;
+                    }
+                    else
+                    {
+                        //Add rows to DataTable.
+                        dt.Rows.Add();
+                        int i = 0;
+                        //foreach (IXLCell cell in row.Cells())
+                        ////foreach (IXLCell cell in row.Cells(row.FirstCellUsed().Address.ColumnNumber, row.LastCellUsed().Address.ColumnNumber))
+                        //{                            
+                        //    dt.Rows[dt.Rows.Count - 1][i] = cell.Value.ToString();                        
+                        //    i++;                            
+                        //}
+
+                        for (int c = 0; c < dt.Columns.Count; c++)
+                        {
+                            dt.Rows[dt.Rows.Count - 1][c] = row.Cell(c + 1).Value.ToString();
+                        }
+                    }
+                }
+                //gvTemp.DataSource = dt;
+                //gvTemp.DataBind();
+                //Insert values in Database
+               try{
+                saveData(dt);
+               }catch(Exception err)
+               {
+                   Common.Show("Error: Invalid details in selected worksheet, kindly download the format and try again.");
+               }
+            }
+        }
+    }
+    
+    public void ImportExcel_20042017(object sender, EventArgs e)
+    {
+        //Save the uploaded Excel file.       
+
+        string newFile = "";
+        int newLength = 0;
+        string newFileExtn = "";       
+
+        if (!fuMSheet.FileName.Trim().Equals(""))
+        {
+            newFile = fuMSheet.PostedFile.FileName.ToString();
+            newLength = newFile.LastIndexOf(".");
+            newFileExtn = newFile.Substring(newLength, newFile.Length - newLength);
+        }
+
+        if (!".XLSX".Equals(newFileExtn.ToUpper()))
+        {
+            Common.Show("Error: Only .xlsx files are allowed, other fomats are not supported.");
+        }
+        else
+        {
+
+          //  string filePath = Server.MapPath("~/Msheets/") + Path.GetFileName(fuMSheet.PostedFile.FileName);
+            string filePath = Server.MapPath("~/Msheets/") + Session["USERID"].ToString() +" "+ DateTime.Now.ToString().Replace(":","").Replace("/","") + newFileExtn;
+            fuMSheet.SaveAs(filePath);
+
+            //Open the Excel file using ClosedXML.
+            using (XLWorkbook workBook = new XLWorkbook(filePath))
+            {
+                //Read the first Sheet from Excel file.
+                IXLWorksheet workSheet = workBook.Worksheet(1);
+
+                //Create a new DataTable.
+                DataTable dt = new DataTable();
+
+                //Loop through the Worksheet rows.
+                bool firstRow = true;
+                foreach (IXLRow row in workSheet.Rows())
+                {
+                    // Use the first row to add columns to DataTable.
+                    if (firstRow)
+                    {
+                        foreach (IXLCell cell in row.Cells())
+                        {
+                            dt.Columns.Add(cell.Value.ToString());
+                        }
+                        firstRow = false;
+                    }
+                    else
+                    {
+                        //Add rows to DataTable.
+                        dt.Rows.Add();
+                        int i = 0;
+                        //foreach (IXLCell cell in row.Cells())
+                        ////foreach (IXLCell cell in row.Cells(row.FirstCellUsed().Address.ColumnNumber, row.LastCellUsed().Address.ColumnNumber))
+                        //{                            
+                        //    dt.Rows[dt.Rows.Count - 1][i] = cell.Value.ToString();                        
+                        //    i++;                            
+                        //}
+
+                        for (int c = 0; c < dt.Columns.Count ; c++)
+                        {
+                            dt.Rows[dt.Rows.Count - 1][c] = row.Cell(c + 1).Value.ToString();    
+                        }
+                    }
+                }
+                //gvTemp.DataSource = dt;
+                //gvTemp.DataBind();
+                //Insert values in Database
+                saveData(dt);
+            }
+        }
+    }
+
+    public void ImportExcel_old(object sender, EventArgs e)
+    {
+        //Save the uploaded Excel file.
+        string filePath = Server.MapPath("~/Msheets/") + Path.GetFileName(fuMSheet.PostedFile.FileName);
+        fuMSheet.SaveAs(filePath);
+
+        //Open the Excel file using ClosedXML.
+        using (XLWorkbook workBook = new XLWorkbook(filePath))
+        {
+            //Read the first Sheet from Excel file.
+            IXLWorksheet workSheet = workBook.Worksheet(1);
+
+            //Create a new DataTable.
+            DataTable dt = new DataTable();
+
+            //Loop through the Worksheet rows.
+            bool firstRow = true;
+            foreach (IXLRow row in workSheet.Rows())
+            {
+                //Use the first row to add columns to DataTable.
+                if (firstRow)
+                {
+                    foreach (IXLCell cell in row.Cells())
+                    {
+                        dt.Columns.Add(cell.Value.ToString());
+                    }
+                    firstRow = false;
+                }
+                else
+                {
+                    //Add rows to DataTable.
+                    dt.Rows.Add();
+                    int i = 0;
+                    foreach (IXLCell cell in row.Cells())
+                    {
+                        dt.Rows[dt.Rows.Count - 1][i] = cell.Value.ToString();
+                        i++;
+                    }
+                }
+
+                gvTemp.DataSource = dt;
+                gvTemp.DataBind();
+                //Insert values in Database
+                saveData(dt);
+            }
+        }
+    }
+
+    public void saveData(DataTable dt)
+    {
+     //Iterate datatable and generate queries
+        ArrayList lstArrayInsertQueries = new ArrayList();
+        ArrayList insertParamList = new ArrayList();
+
+        //Check the Sequence Number
+        string excel_sequence = "";
+        string unit_of_measure = "";
+        string rowcount = dt.Rows.Count.ToString();
+
+        //excel_sequence = dt.Rows[9][1].ToString();
+        DataRow drSequence = dt.Rows[6];
+        excel_sequence = drSequence[1].ToString();
+        unit_of_measure = drSequence[3].ToString();
+
+        if (!lblSeqNumber.Text.Equals(excel_sequence))
+        {
+            Common.Show("Error:Wrong SOR Item number, kindly check before uploding measurement sheet ");
+        }
+        else if ("".Equals(unit_of_measure))
+        {
+            Common.Show("Error:Unit cannot be blank, kindly check unit before uploding measurement sheet ");
+        }
+        else
+        {
+           //First delete the existing measurement sheet from procedure
+            try
+            {
+                Dictionary<string, string> paramUpdateList = new Dictionary<string, string>();
+                paramUpdateList.Add("t_refid", hdreferenceId.Value);
+                paramUpdateList.Add("t_ccode", Session["USERID"].ToString());
+                paramUpdateList.Add("t_tend_sor_id", hdtenderSorId.Value);
+                paramUpdateList.Add("t_act_seq", hdactivityId.Value);
+                paramUpdateList.Add("t_SEQ_NO", lblSeqNumber.Text);                
+
+                if(hdrunningSrNo.Value.Length > 0)
+                {
+                   paramUpdateList.Add("t_RUN_SL_NO", hdrunningSrNo.Value);
+                   objDB.executeProcedure("WEBCONS.rab_msheet_Delete_RunningBill", paramUpdateList);
+                }
+                else
+                {
+                     objDB.executeProcedure("WEBCONS.rab_msheet_Delete_NewBill", paramUpdateList);
+                }               
+            }
+            catch (Exception err)
+            { }
+
+            
+            // For each row, print the values of each column.
+            //foreach (DataRow row in dt.Rows )
+            //{
+            //    foreach (DataColumn column in dt.Columns)
+            //    {
+            //        Response.Write(row[column]);
+            //    }
+            //}
+            StringBuilder sbInsertQry = new StringBuilder();
+            sbInsertQry.Append("INSERT INTO RAB_TENDER_MSHEET ")
+                    .Append(" ( ")
+                    .Append(" REF_ID, SEQ_NO,  ACT_SEQ, RUN_SL_NO,  ACTIVTY_DESC, UNIT, REMARKS, QUANTITY, LENGTH, BREADTH, HEIGHT,UNIT4,  ADDED_BY, ADDED_ON,TENDER_SOR_ID,unit_Weight ")
+                    .Append(" ) ")
+                    .Append(" values ")
+                    .Append(" ( ")
+                    .Append(" :REF_ID, :SEQ_NO, :ACT_SEQ, :RUN_SL_NO,  :ACTIVTY_DESC, :UNIT, :REMARKS, :QUANTITY, :LENGTH, :BREADTH, :HEIGHT,:UNIT4,  :ADDED_BY, sysdate,:TENDER_SOR_ID,:unit_Weight ")
+                    .Append(" ) ");
+
+
+            //14th row is starting row for data insertion
+            int recordInserted = 0;
+            for (int i = 9; i < dt.Rows.Count; i++)
+            {
+
+                Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+                DataRow dr = dt.Rows[i];
+                bool dataexistsforRow = false;
+                bool unitexists = false;
+
+
+                string description = dr[1].ToString();
+                string unit = dr[2].ToString();
+                string nos = "";
+                string length = "";
+                string breadth = "";
+                string height = "";
+                string unitWeight = "";
+                string dia = "";
+                string totalQty = "";
+                string remarks = "";
+                
+
+                if (dr[1].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    description = dr[1].ToString();
+                }
+
+                //if (dr[2].ToString().Length > 0)
+                //{
+                //    dataexistsforRow = true;
+                //    unit = dr[2].ToString();
+                //    unitexists = true;
+                //}
+                if (unit_of_measure.Length > 0)
+                {
+                    dataexistsforRow = true;
+                    unit = unit_of_measure;
+                    unitexists = true;
+                }
+
+                if (dr[2].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    nos = dr[2].ToString();
+                }
+
+                if (dr[3].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    length = dr[3].ToString();
+                }
+
+                if (dr[4].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    breadth = dr[4].ToString();
+                }
+
+                if (dr[5].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    height = dr[5].ToString();
+                }
+
+                if (dr[6].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    unitWeight = dr[6].ToString();
+                }
+
+                if (dr[7].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    dia = dr[7].ToString();
+                }
+
+                //if (dr[9].ToString().Length > 0)
+                //{
+                //    dataexistsforRow = true;
+                //    totalQty = dr[9].ToString();
+                //}
+                if (dr[8].ToString().Length > 0)
+                {
+                    dataexistsforRow = true;
+                    remarks = dr[8].ToString();
+                }
+
+                if (dataexistsforRow && unitexists)
+                {
+                    if (nos.Length > 0 || length.Length > 0 || breadth.Length > 0 || height.Length > 0 || dia.Length > 0 || unitWeight.Length>0)
+                    {
+                    paramList.Add("REF_ID", hdreferenceId.Value);
+                    paramList.Add("SEQ_NO", lblSeqNumber.Text);
+                    paramList.Add("ACT_SEQ", hdactivityId.Value);
+                    paramList.Add("RUN_SL_NO", hdrunningSrNo.Value);
+                    paramList.Add("ACTIVTY_DESC", description);
+                    paramList.Add("UNIT", unit);
+                    paramList.Add("REMARKS", remarks);
+                    paramList.Add("QUANTITY", nos);
+                    paramList.Add("LENGTH", length);
+                    paramList.Add("BREADTH", breadth);
+                    paramList.Add("HEIGHT", height);
+                    paramList.Add("UNIT4", dia);
+                    paramList.Add("ADDED_BY", Session["USERID"].ToString());
+                    paramList.Add("TENDER_SOR_ID", hdtenderSorId.Value);
+                    paramList.Add("unit_Weight", unitWeight);
+                    //paramList.Add("CALCULATED_QTY", totalQty);                    
+
+                    //  lstArrayInsertQueries.Add(sbInsertQry);
+                    //  insertParamList.Add(paramList);
+
+                   
+                    recordInserted = objDB.executeNonQuery(sbInsertQry.ToString(), paramList);
+                   
+                }
+                }
+            }
+
+
+            if (recordInserted > 0)
+            {
+                //Updating RAB_TENDER_BILL table
+                try
+                {
+                    // New logic for adding bill data and update the final quantity in RAB_TENDER_BILL
+                    DataTable dtBill = new DataTable();
+                    Dictionary<string, string> paramListBill = new Dictionary<string, string>();
+                    if (billID == null)
+                    {
+                        billID = Request.QueryString["billID"].ToString();
+                    }
+                    paramListBill.Add("ID", billID);
+
+                    dtBill = objDB.bindDataTable("select ID, BILL_NUMBER, to_char(PERIOD_FROM,'dd-Mon-YYYY') PERIOD_FROM,to_char(PERIOD_TO,'dd-Mon-YYYY') PERIOD_TO,to_char(BILL_DATE,'dd-Mon-YYYY') BILL_DATE, CONT_ID, JOB_NO, TENDER_NO, PART_NO, BILL_STATUS, TEND_SOR_ID, RUN_SL_NO, RA_BLL_NO, SUB_JOB FROM RAB_TENDER_BILL_MST where ID=:ID", paramListBill);
+
+                    if (dtBill.Rows.Count != 0 && dtBill.Rows.Count == 1)
+                    {
+                        StringBuilder sbInsertQueries = new StringBuilder();
+                        sbInsertQueries.Append(@" INSERT INTO  RAB_TENDER_BILL (REF_ID, SEQ_NO, RUN_SL_NO, RA_BLL_NO, RA_DATE, ACT_SEQ,  CONT_IS_FROZEN, CONT_ID, RUN_SL_DATE, TEND_SOR_ID, RA_FINAL_BILL_NO, PERIOD_FROM, PERIOD_TO, STATUS, BILL_ID) VALUES 
+                                (:REF_ID, :SEQ_NO, :RUN_SL_NO, :RA_BLL_NO, to_date(:RA_DATE,'dd-Mon-yyyy'), :ACT_SEQ, :CONT_IS_FROZEN,:CONT_ID,sysdate, :TEND_SOR_ID, :RA_FINAL_BILL_NO, to_date(:PERIOD_FROM,'dd-Mon-yyyy'), to_date(:PERIOD_TO,'dd-Mon-yyyy'), :STATUS, :ID) ");
+
+                        paramListBill.Add("REF_ID", hdreferenceId.Value);
+                        paramListBill.Add("SEQ_NO", lblSeqNumber.Text);
+                        paramListBill.Add("RUN_SL_NO", dtBill.Rows[0]["RUN_SL_NO"].ToString());
+                        paramListBill.Add("RA_BLL_NO", dtBill.Rows[0]["RA_BLL_NO"].ToString());
+                        paramListBill.Add("RA_DATE", dtBill.Rows[0]["BILL_DATE"].ToString());
+                        paramListBill.Add("ACT_SEQ", hdactivityId.Value);
+                        paramListBill.Add("CONT_IS_FROZEN", "Y");
+                        paramListBill.Add("CONT_ID", Session["USERID"].ToString());
+                        paramListBill.Add("TEND_SOR_ID", dtBill.Rows[0]["TEND_SOR_ID"].ToString());
+                        paramListBill.Add("RA_FINAL_BILL_NO", dtBill.Rows[0]["BILL_NUMBER"].ToString());
+                        paramListBill.Add("PERIOD_FROM", dtBill.Rows[0]["PERIOD_FROM"].ToString());
+                        paramListBill.Add("PERIOD_TO", dtBill.Rows[0]["PERIOD_TO"].ToString());
+                        paramListBill.Add("STATUS", "DRAFT");
+
+                        int SequenceInserted = 0;
+
+                        SequenceInserted = objDB.executeNonQuery(sbInsertQueries.ToString(), paramListBill);
+
+                        if (SequenceInserted > 0)
+                        {
+
+                            try
+                            {
+                                Dictionary<string, string> paramUpdateList = new Dictionary<string, string>();
+                                paramUpdateList.Add("t_refid", hdreferenceId.Value);
+                                paramUpdateList.Add("t_ccode", Session["USERID"].ToString());
+                                paramUpdateList.Add("t_tend_sor_id", hdtenderSorId.Value);
+                                paramUpdateList.Add("t_act_seq", hdactivityId.Value);
+                                paramUpdateList.Add("t_SEQ_NO", lblSeqNumber.Text);
+                                paramUpdateList.Add("t_RUN_SL_NO", hdrunningSrNo.Value);
+                                objDB.executeProcedure("WEBCONS.rab_msheet_TBill_Update", paramUpdateList);
+                            }
+                            catch (Exception err) { Common.Show("Error:Measurement Sheet not added"); }
+                        }
+                    }
+                    // end                            
+
+                }
+                catch (Exception err)
+                { Common.Show("Error:Measurement Sheet not added"); }
+
+            }
+            else
+            {
+                Common.Show("Error:Measurement Sheet not added");
+            }
+
+
+            bindMeasurementSheet(hdreferenceId.Value, lblSeqNumber.Text, hdactivityId.Value, hdtenderSorId.Value, hdrunningSrNo.Value);
+            Common.Show("Measurement Sheet added succesfully");
+            btnUpload.Visible = false;
+        }
+    }
+
+    //Deleteing Measurement Sheet
+    protected void btnDeleteMSheet_Click(object sender, EventArgs e)
+    {
+        int recordsDeleted = 0;
+        if(gvMeasurementSheet.Rows.Count > 0)
+        {
+            foreach(GridViewRow row in gvMeasurementSheet.Rows)
+            {           
+            HiddenField hdMSheetRSerialNum = new HiddenField();
+            hdMSheetRSerialNum = (HiddenField)row.FindControl("hdMSheetRSerialNum");
+            HiddenField hdMSheetID = new HiddenField();
+            hdMSheetID = (HiddenField)row.FindControl("hdMSheetID");
+            HiddenField hdMSheetRefId = new HiddenField();
+            hdMSheetRefId = (HiddenField)row.FindControl("hdMSheetRefId");
+            HiddenField hdMSheetSeqNo = new HiddenField();
+            hdMSheetSeqNo = (HiddenField)row.FindControl("hdMSheetSeqNo");
+            HiddenField hdMSheetTSorId = new HiddenField();
+            hdMSheetTSorId = (HiddenField)row.FindControl("hdMSheetTSorId");
+            HiddenField hdMSheetActSeq = new HiddenField();
+            hdMSheetActSeq = (HiddenField)row.FindControl("hdMSheetActSeq");
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            StringBuilder sbDeleteQuery = new StringBuilder();
+            sbDeleteQuery.Append("DELETE FROM RAB_TENDER_MSHEET WHERE id=:id ");
+            paramList.Add("id", hdMSheetID.Value);
+            if (hdMSheetRSerialNum.Value.Length > 0)
+            {
+                sbDeleteQuery.Append(" AND RUN_SL_NO=:RUN_SL_NO ");
+                paramList.Add("RUN_SL_NO", hdMSheetRSerialNum.Value);
+            }
+
+            if (objDB.executeNonQuery(sbDeleteQuery.ToString(), paramList) > 0)
+            {
+                //Updating tender_ra_bill table
+                try
+                {
+                    Dictionary<string, string> paramUpdateList = new Dictionary<string, string>();
+                    paramUpdateList.Add("t_refid", hdMSheetRefId.Value);
+                    paramUpdateList.Add("t_ccode", Session["USERID"].ToString());
+
+                    paramUpdateList.Add("t_tend_sor_id", hdMSheetTSorId.Value);
+                    paramUpdateList.Add("t_act_seq", hdMSheetActSeq.Value);
+
+                    paramUpdateList.Add("t_SEQ_NO", hdMSheetSeqNo.Value);
+                    paramUpdateList.Add("t_RUN_SL_NO", hdMSheetRSerialNum.Value);
+                   // objDB.executeProcedure("WEBCONS.rab_msheet_TBill_Update", paramUpdateList);
+                    objDB.executeProcedure("WEBCONS.rab_msheet_delete_Seq", paramUpdateList);                   
+
+                    recordsDeleted++;
+                }
+                catch (Exception err)
+                { }
+                
+            }
+            
+            }
+         }
+
+        if (recordsDeleted > 0)
+        {                      
+           // bindMeasurementSheet(hdMSheetRefId.Value, hdMSheetSeqNo.Value, hdMSheetActSeq.Value, hdMSheetTSorId.Value, hdMSheetRSerialNum.Value);
+          gvMeasurementSheet.DataSource=null;
+          gvMeasurementSheet.DataBind();
+          btnDeleteMSheet.Visible = false;
+          Common.Show("Measurement sheet Deleted Successfully");  
+        }
+    }
+}

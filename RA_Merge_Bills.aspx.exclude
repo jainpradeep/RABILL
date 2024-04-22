@@ -1,0 +1,129 @@
+﻿<%@ Page Title="" Language="C#" MasterPageFile="~/RA_MenuPage.master" AutoEventWireup="true" CodeFile="RA_Merge_Bills.aspx.cs" Inherits="RA_Merge_Bills" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="head" Runat="Server">
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" Runat="Server">
+
+
+        <table width="100%" class="myTable" cellspacing="5" cellpadding="5">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Merge Bills
+
+                    <asp:HiddenField ID="actionName" runat="server" />
+                   <asp:HiddenField ID="jobNumber" runat="server" />
+                   <asp:HiddenField ID="tenderNumber" runat="server" />
+                   <asp:HiddenField ID="hdBillType" runat="server" />
+
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" align="center">
+                    <asp:Label ID="lblNoteMergeBill" runat="server" Text="NOTE: Kindly arrange to merge the bills first (If any) before adding the new bills in the system." Font-Bold="true" ForeColor="Red"></asp:Label>
+                </td>
+            </tr>
+            <tr>
+            <td colspan="2" align="center">
+            <table width="70%" cellspacing="5" cellpadding="5">
+            <tr>
+                <td class="myLabel">
+                    Select Job Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Tender Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddTenderNo" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddTenderNo_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+             <tr id="trBillMerge" runat="server" visible="false">
+                <td class="myLabel">Enter unique Merged Bill no </td>
+                <td>
+                    <asp:TextBox ID="txtMergedBillNumber" runat="server" MaxLength="100" CssClass="myInput" Width="200"></asp:TextBox>&nbsp;<asp:Button ID="btnMerge" runat="server" Text="Merge selected Bills" Font-Bold="true" onclientclick="return confirm('Do you want to MERGE these bills?');" OnClick="btnMerge_Click"/>
+                </td>
+            </tr>
+           <tr>
+               <td colspan="2"><asp:Label ID="lblError" runat="server" Font-Bold="true" ForeColor="Red"></asp:Label> </td>
+           </tr>
+            </table>
+            </td>
+            </tr>            
+            
+
+          
+            <tr id="trOldBills" runat="server" visible="false">
+                <td colspan="2" align="center">
+                    <asp:Panel ID="pnlBillsAdded" runat="server">
+                    <div style="width:100%;overflow:scroll;height:400px;">
+                        <asp:GridView ID="gvBillsAdded" runat="server" Font-Names="Arial" Width="70%" AutoGenerateColumns="False"
+                            BorderWidth="1px" CellPadding="5" BorderColor="#CCCCCC" BorderStyle="None" Caption="Select the bills to merge (Option for merging will only be available if bill number is like RA 20.1, RA 20.3, RA 20.6 etc."
+                            Font-Size="Medium" >
+                            <Columns>
+                                <asp:TemplateField HeaderText="S.No " HeaderStyle-Width="3%" >
+                                    <ItemTemplate>
+                                        <%#Container.DataItemIndex+1 %>&nbsp;&nbsp;
+                                        <asp:HiddenField ID="hdContractorId" runat="server" Value='<%#Eval("CONT_ID") %>' />
+                                        <asp:HiddenField ID="hdBillRunningSRNo" runat="server" Value='<%#Eval("RUN_SL_NO") %>' />
+                                        <asp:HiddenField ID="hdBillingDate" runat="server" Value='<%#Eval("RUN_SL_DATE") %>' />
+                                        <asp:HiddenField ID="hdRABillNumber" runat="server" Value='<%#Eval("RA_FINAL_BILL_NO") %>' />
+                                        <asp:HiddenField ID="hdTenderSorId" runat="server" Value='<%#Eval("TEND_SOR_ID") %>' />
+                                        <asp:HiddenField ID="hdRARunningBillNo" runat="server" Value='<%#Eval("RA_BLL_NO") %>' />                         
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                             <asp:TemplateField HeaderText="Select" HeaderStyle-Width="3%" ItemStyle-HorizontalAlign="Center" HeaderStyle-HorizontalAlign="Center">
+                                    <ItemTemplate>
+                                        <asp:CheckBox ID="chkSelect" runat="server" />
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+
+
+                                <asp:TemplateField HeaderText="Added On" HeaderStyle-Width="10%" >
+                                    <ItemTemplate>
+                                        <%#Eval("RUN_SL_DATE")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+
+                                <asp:TemplateField HeaderText="Bill Number" HeaderStyle-Width="15%" >
+                                    <ItemTemplate>
+                                        <%#Eval("RA_FINAL_BILL_NO")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+
+                                <asp:TemplateField HeaderText="Bill Period" HeaderStyle-Width="15%"  >
+                                    <ItemTemplate>
+                                        <%#Eval("RA_Bill_Period")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+
+                               
+                            </Columns>
+                            <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                            <EmptyDataTemplate>
+                                <b>Bill entry not found.</b>
+                            </EmptyDataTemplate>
+                            <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                                VerticalAlign="Middle" CssClass="myGridHeader" />
+                            <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066"
+                                Font-Size="9pt" />
+                            <SelectedRowStyle CssClass="myGridSelectedItemStyle" />
+                            <AlternatingRowStyle CssClass="myGridAlternatingItemStyle" />
+                        </asp:GridView>
+                        </div>
+                    </asp:Panel>
+                </td>
+            </tr>
+
+       
+            </table>
+
+</asp:Content>
+

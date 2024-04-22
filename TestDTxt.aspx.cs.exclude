@@ -1,0 +1,191 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+
+public partial class TestDTxt : System.Web.UI.Page
+{
+    protected void Page_Load(object sender, EventArgs e)
+    {
+
+    }
+    protected void btnSubmit_Click(object sender, EventArgs e)
+    {
+        if (Page.IsValid && CheckMandatoryInput())
+        {
+            Dictionary<int, string[]> Invoices = new Dictionary<int, string[]>();
+            for (int i = 1; i <= int.Parse(Request["inpTot"]); i++)
+            {
+                string[] values = GetValues(i);
+                if (values != null)
+                {
+                    Invoices.Add(i, values);
+                }
+
+            }
+
+            if (Invoices.Keys.Count > 0)
+            {
+                if (InsertInvices(Invoices))
+                {
+                    ShowMessage("Invoices Added", false, String.Empty);
+                }
+                else
+                {
+                    ShowMessage("Invoices Addition Failed, Try Again", true, String.Empty);
+                }
+            }
+        }
+    }
+
+    private void ShowMessage(string Msg, bool IsError, string RedirectURL)
+    {
+        throw new NotImplementedException();
+    }
+
+    private bool InsertInvices(Dictionary<int, string[]> Invoices)
+    {
+        foreach (KeyValuePair<int, string[]> item in Invoices)
+        {
+            if (InvoiceNotExist(item.Value))
+            {
+            }
+        }
+        return true;
+    }
+
+    private bool InvoiceNotExist(string[] p)
+    {
+        throw new NotImplementedException();
+    }
+
+    private string[] GetValues(int i)
+    {
+        if (Validate(Request["txtInvNo" + i], "INVNO") == null ||
+                    Validate(Request["txtInvAmt" + i], "INVAMT") == null ||
+                    Validate(Request["txtInvDate" + i], "INVDT") == null ||
+                    Validate(Request["txtInvRecvOn" + i], "INVRCV") == null ||
+                    Validate(Request["txtComments" + i], "INVCMNT") == null
+                )
+        {
+            return null;
+        }
+        else
+        {
+            return new string[] { 
+                    Validate(Request["txtInvNo" + i], "INVNO"),
+                    Validate(Request["txtInvAmt" + i], "INVAMT"),
+                    Validate(Request["txtInvDate" + i], "INVDT"),
+                    Validate(Request["txtInvRecvOn" + i], "INVRCV"),
+                    Validate(Request["txtComments" + i], "INVCMNT")
+                };
+        }
+    }
+
+    private string Validate(string Value, string Type)
+    {
+        string ReturnVal = String.Empty;
+        switch (Type)
+        {
+            case "INVNO":
+                if (!String.IsNullOrEmpty(Value) && Value.Length < 295 && Value.IndexOf(",") <= 0)
+                {
+                    ReturnVal = Value;
+
+                }
+                else
+                {
+                    ReturnVal = null;
+                }
+
+
+                break;
+            case "INVAMT":
+
+                double invamt = 0;
+
+                double.TryParse(Value, out invamt);
+
+                if (!String.IsNullOrEmpty(Value) && Value.Length < 12 && invamt != 0)
+                {
+                    ReturnVal = Value;
+
+                }
+                else
+                {
+                    ReturnVal = null;
+                }
+                break;
+
+            case "INVDT":
+
+                DateTime dt = DateTime.MinValue;
+
+                DateTime.TryParse(Value, out dt);
+
+                if (!String.IsNullOrEmpty(Value) && Value.Length == 10 && dt != DateTime.MinValue)
+                {
+                    ReturnVal = Value;
+
+                }
+                else
+                {
+                    ReturnVal = null;
+                }
+                break;
+
+            case "INVRCV":
+
+                DateTime rc = DateTime.MinValue;
+
+                DateTime.TryParse(Value, out rc);
+
+                if (!String.IsNullOrEmpty(Value) && Value.Length == 10 && rc != DateTime.MinValue)
+                {
+                    ReturnVal = Value;
+
+                }
+                else
+                {
+                    ReturnVal = null;
+                }
+                break;
+
+            case "INVCMNT":
+                if (!String.IsNullOrEmpty(Value) && Value.Length < 250)
+                {
+                    ReturnVal = Value;
+
+                }
+                else
+                {
+                    ReturnVal = null;
+                }
+
+                break;
+            default:
+                ReturnVal = null;
+                break;
+        }
+
+        return ReturnVal.ParseSQL();
+    }
+
+    private bool CheckMandatoryInput()
+    {       
+
+        int totInput = 0;
+
+        int.TryParse(Request["inpTot"], out totInput);
+
+        if (Request["inpTot"] == null || totInput == 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+}

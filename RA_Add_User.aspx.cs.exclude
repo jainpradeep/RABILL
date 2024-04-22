@@ -1,0 +1,381 @@
+﻿using Microsoft.VisualBasic;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Configuration;
+using System.Data.OleDb;
+using System.Web.UI.WebControls;
+using System.Text;
+using AppCode;
+
+partial class RA_Add_User : System.Web.UI.Page
+{
+
+    dbFunction objDB = new dbFunction();
+	public string TextValue;
+
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null && ("RCM".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString())))
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());
+                bind_site();
+            }
+            else
+            {
+                Common.Show("You are not authorised for it\\n");
+                Response.Redirect("Default.aspx");
+            }
+        }
+    }
+
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("AC".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE=:ACTIVE  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+            paramList.Add("ACTIVE", "Y");
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM and site_opn_closed=:site_opn_closed) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+            paramList.Add("site_opn_closed", "O");
+            
+        }
+
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+    }
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        if ( "AC".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append("SELECT distinct TENDER_NO||'~'||part_no tender_part, tender_no||'-'||part_no||' ( '||title||' )' description   ")
+           .Append(" FROM  RAB_TENDER_USERS a ")
+              .Append(" WHERE JOB_NO=:JOB_NO ")
+              .Append(" AND EMPNO=:EMPNO ")
+              .Append(" AND ROLE=:ROLE ")
+              .Append(" ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+
+        }        
+        else
+        {           
+
+//            sbQuery.Append(@"Select  distinct TENDER_NO||'~'||part_no tender_part, tender_no||'-'||part_no||' ( '||title||' )' description 
+//                            FROM RAB_TENDER_MASTER a
+//                            WHERE JOB_NO=:JOB_NO 
+//                            ORDER BY tender_part");
+
+            // Changed above query to accomodate LSTK Bill's, to add AC for other Jobs which were not populated in RAB
+            sbQuery.Append(@"select distinct tender_part,description
+                                from
+                                (
+                                select distinct A.JTN||'~'||part_no tender_part,a.jtn||'-'||part_no||' ( '||TEND_DESC||' )' description from VW_RAB_LSTK_JOBS a where A.JOB_NO=:JOB_NO
+                                union
+                                Select  distinct TENDER_NO||'~'||part_no tender_part, tender_no||'-'||part_no||' ( '||title||' )' description 
+                                                            FROM RAB_TENDER_MASTER a
+                                                            WHERE JOB_NO=:JOB_NO                             
+                            ) ORDER BY tender_part");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "tender_part", "description", "", "--Select Tender Number--");
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue) && !"".Equals(ddTenderNo.SelectedValue))
+        {
+            displaygrid();
+        }
+        else
+        {
+            Common.Show("Please select Job Number and Tender Number");            
+        }
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+            bindTenders(ddJobNumber.SelectedValue);
+
+          //  txtsitecode.Text = ExecuteStatement.SelectStringHO("select distinct site_cd from job_dir where job_no in (SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM='" + Session["USERID"] + "') ) ORDER BY site_cd");
+            txtsitecode.Text = ExecuteStatement.SelectStringHO("select distinct site_cd from job_dir where job_no ='" + ddJobNumber.SelectedValue + "' ORDER BY site_cd");
+            txtsitename.Text = ExecuteStatement.SelectStringHO("select distinct site_name from site_dir where site_cd='" + txtsitecode.Text + "'");
+        }
+        else
+        {
+            Common.Show("Please select Job Number\\n");
+        }
+    }
+
+	private void bind_site()
+	{
+		//txtsitecode.Text = ExecuteStatement.SelectStringHO("select site_cd from job_dir where job_no='" & Session["JOBNO"] & "' and sub_job='" & Session["SubJOBNO"] & "'")
+
+		//txtsitecode.Text = ExecuteStatement.SelectStringHO("select distinct site_cd from job_dir where job_no in (SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM='" + Session["USERID"] + "') ) ORDER BY site_cd");
+
+		//txtsitename.Text = ExecuteStatement.SelectStringHO("select distinct site_name from site_dir where site_cd='" + txtsitecode.Text + "'");
+		bind_tender();
+		displaygrid();
+	}
+	protected void onPageIndexChanging(object sender, GridViewPageEventArgs e)
+	{
+		int NewPage = gvemployee.PageIndex + 1;
+		if (NewPage <= gvemployee.PageCount) {
+			gvemployee.PageIndex = e.NewPageIndex;
+		}
+		gvemployee.DataBind();
+		displaygrid();
+	}
+	protected void btnAdd_Click(object sender, System.EventArgs e)
+	{
+        if (!"".Equals(ddJobNumber.SelectedValue) && !"".Equals(ddTenderNo.SelectedValue))
+        {
+            displaygrid1();
+        }
+        else
+        {
+            Common.Show("Please select Job Number and Tender Number");
+        }
+	}
+	private void displaygrid()
+	{
+		string strsql = null;
+        if (!ddTenderNo.SelectedValue.Equals(""))
+        {
+		OleDbConnection myConn1 = new OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings["raConnection1"].ConnectionString);
+		//  strsql = "select a.empno,b.empname,a.EMP_ROLE  from RAB_TENDER_USERS a,pdb.vw_employee@DBL_NEWEIL1 b where a.empno=b.empno(+) and a.job_no='" & txtjobcode.Text & "' and a.sub_job='" & lblsubjobno.Text & "' order by a.empno"
+		//strsql = "select a.empno,a.empno empname,a.role EMP_ROLE  from RAB_TENDER_USERS a where  a.job_no='" + txtjobcode.Text + "' and a.sub_job='" + lblsubjobno.Text + "' and a.TENDER_NO = '" + ddltenerno.SelectedItem.Value + "' order by a.empno";
+        
+            string[] strArray = ddTenderNo.SelectedValue.Split('~');
+
+            strsql = "select a.empno, empname,a.role EMP_ROLE from RAB_TENDER_USERS a,vw_employee b where a.empno=b.empno and sep_type=0 and  a.job_no='" + ddJobNumber.SelectedValue + "'  and a.TENDER_NO = '" + strArray[0] + "' and a.part_no = '" + strArray[1] + "' order by a.empno";
+            OleDbCommand cmd = new OleDbCommand(strsql, myConn1);
+            try
+            {
+                OleDbDataAdapter da = new OleDbDataAdapter(cmd);
+                DataTable poData = new DataTable();
+                da.Fill(poData);
+                gvemployee.DataSource = poData;
+                gvemployee.DataBind();
+            }
+            catch (Exception ex)
+            {
+            }
+            myConn1.Close();
+        }
+	}
+	private void displaygrid1()
+	{
+		string strsql = null;
+        if (!ddTenderNo.SelectedValue.Equals(""))
+        {
+            OleDbConnection myConn1 = new OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings["raConnection1"].ConnectionString);
+            //strsql = "select a.empno,a.empno empname   from employee_dir a where a.site_cd='" + txtsitecode.Text + "' and a.empno not in (select empno from RAB_TENDER_USERS where job_no='" + txtjobcode.Text + "' and sub_job='" + lblsubjobno.Text + "' and  TENDER_NO = '" + ddltenerno.SelectedItem.Value + "' ) and a.empno <> '" + Session["sUserId"] + "'  order by empno";
+            //strsql = "select a.empno, b.empname  from employee_dir a,vw_employee b where a.empno=b.empno and sep_type=0 and a.site_cd='" + txtsitecode.Text + "' and a.empno not in (select empno from RAB_TENDER_USERS where job_no='" + ddJobNumber.SelectedValue + "' and  TENDER_NO = '" + ddTenderNo.SelectedValue + "' ) and a.empno <> '" + Session["USERID"].ToString() + "'  order by empno";
+
+            //changed for dual Role
+
+            strsql = "select a.empno, b.empname  from employee_dir a,vw_employee b where a.empno=b.empno and sep_type=0 and a.site_cd='" + txtsitecode.Text + "'  and a.empno <> '" + Session["USERID"].ToString() + "'  order by empno";
+
+            //        strsql = "select a.empno,b.empname from webcons.employee_dir a, pdb.vw_employee@DBL_NEWEIL1 b where a.site_cd='" & txtsitecode.Text & "' and a.empno not in (select empno from RAB_TENDER_USERS where job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "' and  TENDER_NO = '" & ddltenerno.SelectedItem.Value & "' ) and a.empno <> '" & Session["sUserId"] & "' and a.empno=b.empno(+) and b.sep_type=0 order by empno"
+            OleDbCommand cmd = new OleDbCommand(strsql, myConn1);
+            try
+            {
+                OleDbDataAdapter da = new OleDbDataAdapter(cmd);
+                DataTable poData = new DataTable();
+                da.Fill(poData);
+                gvaddemp.DataSource = poData;
+                gvaddemp.DataBind();
+            }
+            catch (Exception ex)
+            {
+            }
+            myConn1.Close();
+            ModalPopupExtender1.Show();
+        }
+	}
+	protected void btnSubmit_Click(object sender, System.EventArgs e)
+	{
+		int i = 0;
+		string strsql = null;
+		bool dmlStatus = false;
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+		for (i = 0; i <= gvaddemp.Rows.Count - 1; i++) {
+			string empno = ((Label)gvaddemp.Rows[i].FindControl("lblempno")).Text;
+
+			string emprole = ((DropDownList)gvaddemp.Rows[i].FindControl("ddlemprole")).SelectedItem.Value;
+			string emproledesc = ((DropDownList)gvaddemp.Rows[i].FindControl("ddlemprole")).SelectedItem.Text;
+
+			if (emprole == "BE" | emprole == "AC") {
+				
+                //Check if user exists for the same role than ignore
+
+                StringBuilder sbCheckEmpQry = new StringBuilder();
+                sbCheckEmpQry.Append(@"select empno 
+                                    from RAB_TENDER_USERS
+                                    where job_no=:job_no and TENDER_NO=:TENDER_NO
+                                    and role=:role and empno=:empno and part_no=:part_no");
+                
+                Dictionary<string, string> paramList = new Dictionary<string, string>();
+                paramList.Add("job_no", ddJobNumber.SelectedValue);
+                paramList.Add("TENDER_NO", strArray[0]);
+                paramList.Add("role", emprole);
+                paramList.Add("empno", empno);
+                paramList.Add("part_no", strArray[1]);
+
+                if (objDB.executeScalar(sbCheckEmpQry.ToString(), paramList).Length == 0)
+                {
+                    strsql = "insert into RAB_TENDER_USERS (job_no,empno,TENDER_NO, role,ADDED_ON,ADDED_BY,part_no ) values ('" + ddJobNumber.SelectedValue + "','" + empno + "','" + strArray[0] + "','" + emprole + "',sysdate,'" + Session["USERID"] + "','" + strArray[1] + "')";
+                    dmlStatus = ExecuteStatement.SetDataHO(strsql);
+                }
+			}
+		}
+
+        if (txtEmpNo.Text.Length > 0)
+        { 
+            string isValidEmp = "";
+            StringBuilder sbQuery = new StringBuilder();
+            Dictionary<string, string> paramListEmp = new Dictionary<string, string>();
+            paramListEmp.Add("EMPNO", txtEmpNo.Text.ToString().Trim().ToUpper());
+            sbQuery.Append("SELECT EMPNO FROM VW_EMPLOYEE WHERE EMPNO=:EMPNO AND SEP_TYPE=0");
+            isValidEmp = objDB.executeScalar(sbQuery.ToString(), paramListEmp);
+
+            //Check if user exists for the same role than ignore
+
+            StringBuilder sbCheckEmpQry = new StringBuilder();
+            sbCheckEmpQry.Append(@"select empno 
+                                    from RAB_TENDER_USERS
+                                    where job_no=:job_no and TENDER_NO=:TENDER_NO
+                                    and role=:role and empno=:empno and part_no=:part_no");            
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            paramList.Add("job_no", ddJobNumber.SelectedValue);
+            paramList.Add("TENDER_NO", strArray[0]);
+            paramList.Add("role", ddlNewEmpRole.SelectedValue);
+            paramList.Add("empno", txtEmpNo.Text.ToString().Trim().ToUpper());
+            paramList.Add("part_no", strArray[1]);
+
+            if (isValidEmp.Length == 4 && !ddlNewEmpRole.SelectedValue.Equals("") && (objDB.executeScalar(sbCheckEmpQry.ToString(), paramList).Length == 0))
+            {
+                strsql = "insert into RAB_TENDER_USERS (job_no,empno,TENDER_NO, role,ADDED_ON,ADDED_BY,part_no ) values ('" + ddJobNumber.SelectedValue + "','" + txtEmpNo.Text.ToString().Trim().ToUpper() + "','" + strArray[0] + "','" + ddlNewEmpRole.SelectedValue + "',sysdate,'" + Session["USERID"] + "','" + strArray[1] + "')";
+                dmlStatus = ExecuteStatement.SetDataHO(strsql);
+            }
+        }
+
+		displaygrid();
+	}
+	protected void onrowediting(object sender, System.Web.UI.WebControls.GridViewEditEventArgs e)
+	{
+		gvemployee.EditIndex = e.NewEditIndex;
+		displaygrid();
+	}
+	protected void onrowcancelingedit(object sender, GridViewCancelEditEventArgs e)
+	{
+		gvemployee.EditIndex = -1;
+		displaygrid();
+	}
+
+	private void bind_tender()
+	{
+		OleDbCommand cmd = default(OleDbCommand);
+		OleDbDataReader dr = default(OleDbDataReader);
+		OleDbConnection Conn = new OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings["raConnection"].ConnectionString);
+
+		if (string.IsNullOrEmpty(ddltenerno.SelectedValue)) {
+			Conn.Open();
+			cmd = new OleDbCommand("select distinct TENDER_NO from RAB_TENDER_MASTER where TENDER_NO is not null and job_no='" + ddTenderNo.SelectedValue + "'  order by TENDER_NO", Conn);
+			cmd.ExecuteNonQuery();
+			dr = cmd.ExecuteReader();
+			ddltenerno.Items.Clear();
+			ddltenerno.Items.Add("");
+			if (dr.HasRows) {
+				while (dr.Read()) {
+					   ddltenerno.Items.Add(dr.GetValue(0).ToString());
+				}
+			}
+			Conn.Close();
+			dr.Close();
+		}
+	}
+
+	protected void onrowupdating(object sender, System.Web.UI.WebControls.GridViewUpdateEventArgs e)
+	{
+		string strsql = null;
+		bool dmlStatus = false;
+		string empno = ((Label)gvemployee.Rows[e.RowIndex].FindControl("lblempno")).Text;
+		string emprole = ((DropDownList)gvemployee.Rows[e.RowIndex].FindControl("ddlemproleedit")).SelectedItem.Value;
+		string emproledesc = ((DropDownList)gvemployee.Rows[e.RowIndex].FindControl("ddlemproleedit")).SelectedItem.Text;
+
+		//string prevroledesc = ExecuteStatement.SelectStringHO("select case role when 'BE' then 'Billing Engineer' when 'AC' then 'Area Coordinator' end emprole from RAB_TENDER_USERS where empno='" + empno + "' and job_no='" + txtjobcode.Text + "' and sub_job='" + lblsubjobno.Text + "'");
+        string prevroledesc = ExecuteStatement.SelectStringHO("select case role when 'BE' then 'Billing Engineer' when 'AC' then 'Area Coordinator' end emprole from RAB_TENDER_USERS where empno='" + empno + "' and job_no='" + ddJobNumber.SelectedValue+ "' ");
+
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+		//strsql = "update RAB_TENDER_USERS set  role='" + emprole + "'  where empno='" + empno + "' and job_no='" + txtjobcode.Text + "' and sub_job='" + lblsubjobno.Text + "'  and  TENDER_NO = '" + ddltenerno.SelectedItem.Value + "'";
+        strsql = "update RAB_TENDER_USERS set  role='" + emprole + "'  where empno='" + empno + "' and job_no='" + ddJobNumber.SelectedValue + "'   and  TENDER_NO = '" + strArray[0] + "' and part_no='" + strArray[1] + "' ";
+		dmlStatus = ExecuteStatement.SetDataHO(strsql);
+
+		gvemployee.EditIndex = -1;
+		displaygrid();
+	}
+	protected void onrowdeleting(object sender, GridViewDeleteEventArgs e)
+	{
+		string strsql = null;
+		bool dmlStatus = false;
+		string empno = ((Label)gvemployee.Rows[e.RowIndex].FindControl("lblempno")).Text;
+        string empRole = ((DropDownList)gvemployee.Rows[e.RowIndex].FindControl("ddlemprole")).SelectedValue.ToString();
+		//strsql = "delete from RAB_TENDER_USERS where empno='" + empno + "' and job_no='" + txtjobcode.Text + "' and sub_job='" + lblsubjobno.Text + "'  and  TENDER_NO = '" + ddltenerno.SelectedItem.Value + "'";
+        //strsql = "delete from RAB_TENDER_USERS where empno='" + empno + "' and job_no='" + ddJobNumber.SelectedValue + "' and TENDER_NO = '" + ddTenderNo.SelectedValue + "'";
+        string[] strArray = ddTenderNo.SelectedValue.Split('~');
+        strsql = "delete from RAB_TENDER_USERS where empno='" + empno + "' and job_no='" + ddJobNumber.SelectedValue + "' and TENDER_NO = '" + strArray[0] + "' and role='" + empRole + "' and part_no='" + strArray[1] + "' ";
+		dmlStatus = ExecuteStatement.SetDataHO(strsql);
+		displaygrid();
+
+	}
+
+
+
+	protected void gvemployee_RowDataBound(object sender, System.Web.UI.WebControls.GridViewRowEventArgs e)
+	{
+		try {
+			if ((e.Row.RowType == DataControlRowType.DataRow)) {
+				if (Session["ROLE"].ToString() == "RCM") {
+					e.Row.Cells[0].Enabled = true;
+					e.Row.Cells[5].Enabled = true;
+				} else {
+					e.Row.Cells[0].Enabled = false;
+					e.Row.Cells[5].Enabled = false;
+				}
+
+			}
+
+		} catch (Exception ee) {
+		}
+	}
+
+	protected void ddltenerno_SelectedIndexChanged(object sender, System.EventArgs e)
+	{
+		displaygrid();
+	}	
+}

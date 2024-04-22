@@ -1,0 +1,39 @@
+﻿<%@ Page Title="" Language="C#" MasterPageFile="~/RA_MenuPage.master" AutoEventWireup="true" CodeFile="RA_Populate_job_data.aspx.cs" Inherits="RA_Populate_job_data" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="head" Runat="Server">
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" Runat="Server">
+
+<table width="100%" class="myTable">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Populate Job data for Billing from ICMS CBA
+                </td>
+            </tr>
+            <tr>
+            <td colspan="2" align="center">&nbsp;
+            </td>
+            </tr>
+            <tr>
+                <td class="myLabel" align="right">
+                    Select Job Number
+                </td>
+                <td align="left">
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged"
+                        AutoPostBack="false">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+            <td colspan="2" align="center">&nbsp;
+            </td>
+            </tr>
+            <tr>
+            <td colspan="2" align="center">
+            <asp:Button ID="btnPopulateData" runat="server" Font-Bold="true" Text="Populate Job Data from ICMS CBA" OnClick="btnPopulateData_Click"/>
+            </td>
+            </tr>
+            </table>
+
+</asp:Content>
+

@@ -1,0 +1,211 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeFile="TestDTxt.aspx.cs" Inherits="TestDTxt" %>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+    <title></title>
+<link href="css/EILDesign.css" rel="stylesheet" type="text/css" />    
+    <link href="css/ui-lightness/jquery-ui.css" rel="stylesheet" type="text/css" />
+    <link href="css/bootstrap.min.css" rel="stylesheet" />
+    <script src="js/jquery-1.9.1.js" type="text/javascript"></script>
+    <script src="js/jquery-ui-1.10.3.custom.min.js" type="text/javascript"></script>
+    <script src="js/notify.js" type="text/javascript"></script>
+    <script src="js/jquery.numeric.min.js" type="text/javascript"></script>    
+    
+    <!-- For Date Picker -->
+    <style>
+        #ui-datepicker-div { font-size:11px; }
+        .DatePick
+        {
+            width: 80px;
+        }
+        .SetWidthSmall
+        {
+            width: 40px;
+        }
+        .SetWidthMedium
+        {
+            width: 100px;
+        }
+    </style>
+    <!-- End Date Picker -->
+
+    <script>
+
+        function ShowRec(t) {
+            //alert(t.value);
+            if (t.value == 1) {
+                if (document.getElementById("trRec")) {
+                    document.getElementById("trRec").style.display = "";
+                }
+            }
+            else {
+                if (document.getElementById("trRec")) {
+                    document.getElementById("trRec").style.display = "none";
+                }
+            }
+
+        }
+
+        function ShowMsg(t) {
+            //alert(t.value);
+            if (t.value == 1) {
+                if (document.getElementById("dvRec")) {
+                    document.getElementById("dvRec").style.display = "";
+                }
+            }
+            else {
+                if (document.getElementById("dvRec")) {
+                    document.getElementById("dvRec").style.display = "none";
+                }
+            }
+
+        }
+    
+    </script>
+
+</head>
+<body>
+    <form id="form1" runat="server">
+    <div  style="margin:0px auto; width:90%;">    
+    <!--Template Ends Here Includes Form Tag-->
+    <div>
+        <asp:HiddenField ID="hfEmpno" runat="server" />       
+
+
+        <asp:Panel ID="PnlInvoice" runat="server">         
+            <table id="tblInv" runat="server" class="myTbl" border="1">
+                <thead>
+                    <tr class="myGridHeader">
+                        <th colspan="7">
+                            Invoice Input Panel
+                        </th>
+                    </tr>
+                    <tr>
+                        <th>
+                            S.No.
+                        </th>
+                        <th>
+                            Invoice No
+                        </th>
+                        <th>
+                            Invoice Amount
+                        </th>
+                        <th>
+                            Invoice Date
+                        </th>
+                        <th>
+                            Received On
+                        </th>
+                        <th>
+                            Comments
+                        </th>
+                        <th>&nbsp;</th>
+                    </tr>
+                </thead>
+                <tbody id="tbdInv">
+                    <tr class="tr_inv_data">
+                        <td>
+                            1
+                        </td>
+                        <td>
+                            <input name="txtInvNo1" maxlength="295" class="myInput InvNo" />
+                        </td>
+                        <td>
+                            <input name="txtInvAmt1"  maxlength="10" class="myInput numeric SetWidthMedium InvAmt" />
+                        </td>
+                        <td>
+                            <input name="txtInvDate1" readonly class="myInput DatePick InvDate" />
+                        </td>
+                        <td>
+                            <input name="txtInvRecvOn1" readonly class="myInput DatePick InvRecvOn" />
+                        </td>
+                        <td>
+                            <input name="txtComments1" class="myInput InvComments" />
+                        </td>
+                        <td>
+                            <button type="button" id="btnAdd" class="btn btn-xs btn-primary classAdd">
+                                +</button><button type="button" id="btnDelete" class="btn btn btn-danger btn-xs deleteContact">
+                                -</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>              
+<div align="center">
+    <asp:Button ID="btnSubmit" runat="server" Text="Submit" CssClass="myButton" 
+        onclick="btnSubmit_Click" /></div>        
+        <input type="hidden" name="inpTot" id="inpTot" value="0" />        
+        </asp:Panel>        
+    </div>
+    <div id="dvJquery">
+        <script type="text/javascript">
+
+            $(function () {
+                debug = true;
+
+                var rowCount = 1;
+                var datePickerOptions = {
+                    dateFormat: 'dd-mm-yy',
+                    showOn: "button",
+                    buttonImage: "img/calendar.gif",
+                    buttonImageOnly: true,
+                    maxDate: "0D",
+                    changeMonth: true,
+                    changeYear: true
+                };
+
+                $('.DatePick').datepicker(datePickerOptions);
+                $(".numeric").numeric();
+                $('.InvNo').keydown(function T(e) {
+                    var ingnore_key_codes = [32, 70, 188, 16, 191];
+                    if ($.inArray(e.keyCode, ingnore_key_codes) >= 0) {
+                        e.preventDefault();
+                    }
+                });
+
+                $(document).on("click", ".classAdd", function () { //
+                    ++rowCount;    // $('.tr_inv_data').length + 1;
+                    var contactdiv = '<tr class="tr_inv_data">' +
+                    '<td>' + rowCount + '</td>' +
+                '<td><input name="txtInvNo' + rowCount + '" maxlength="295" class="myInput InvNo" /></td>' +
+                '<td><input name="txtInvAmt' + rowCount + '" class="myInput numeric SetWidthMedium InvAmt" maxlength="10" /></td>' +
+                '<td><input name="txtInvDate' + rowCount + '" readonly class="myInput DatePick InvDate" /></td>' +
+                '<td><input name="txtInvRecvOn' + rowCount + '" readonly class="myInput DatePick InvRecvOn" /></td>' +
+                '<td><input name="txtComments' + rowCount + '" class="myInput InvComments" /></td>' +
+                '<td><button type="button" id="btnAdd" class="btn btn-xs btn-primary classAdd">+</button>' +
+                '<button type="button" id="btnDelete" class="btn btn btn-danger btn-xs deleteContact">-</button></td>' +
+                '</tr>';
+                    $('#tblInv').append(contactdiv); // Adding these controls to Main table class                      
+                    $('.DatePick').datepicker(datePickerOptions);
+                    $(".numeric").numeric();
+                    $('#inpTot').val(rowCount);
+                    $('.InvNo').keydown(function T(e) {
+                        var ingnore_key_codes = [32, 70, 188, 16, 191];
+                        if ($.inArray(e.keyCode, ingnore_key_codes) >= 0) {
+                            e.preventDefault();
+                        }
+                    });
+
+                });
+
+                $(document).on("click", ".deleteContact", function () {
+                    if ($('.tr_inv_data').length > 1) {
+                        $(this).closest("tr").remove(); // closest used to remove the respective 'tr' in which I have my controls   
+//                        --rowCount;
+//                        $('#inpTot').val(rowCount);
+                    }
+                    else {
+                        alert("At least 1 record is required");
+                    }
+                });
+
+
+            });           
+            
+        </script>
+    </div>
+    </div>
+    </form>
+</body>
+</html>

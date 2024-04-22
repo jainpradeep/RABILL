@@ -1,0 +1,64 @@
+<%@ Page language="c#" CodeFile="RegContractor.aspx.cs" AutoEventWireup="true" Inherits="EilCont.RegContractor" MasterPageFile="~/RA_MenuPage.master" %>
+<asp:Content ID="Content1" ContentPlaceHolderID="head" Runat="Server">
+	    <style type="text/css">
+            #Table1
+            {
+                height: 141px;
+            }
+            </style>
+            </asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" Runat="Server">
+				<table class="myTable" id="Table1" cellspacing="0" cellpadding="0" width="400">
+					<tr>
+						<td style="WIDTH: 544px; HEIGHT: 21px" align="center" colspan="2">
+							<asp:label id="lblHeader" runat="server" CssClass="myPageHeader" Width="529px">Contractor User Creation</asp:label></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 544px; HEIGHT: 21px" align="left" colspan="2">
+							<asp:Label id="lblError" runat="server" CssClass="myError" Width="528px" DESIGNTIMEDRAGDROP="1279"></asp:Label></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 176px; HEIGHT: 17px">
+							<div class="myLabel" id="lblSite">Site Code&nbsp;
+								<asp:Label id="Label1" runat="server" CssClass="myStar" Width="8px">  *</asp:Label></div>
+						</td>
+						<td style="WIDTH: 100px; HEIGHT: 17px">
+							<asp:DropDownList id="cmbSiteCd" tabIndex="1" runat="server" CssClass="myInput" Width="248px" AutoPostBack="True" OnSelectedIndexChanged="cmbSiteCd_SelectedIndexChanged"></asp:DropDownList></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 176px; HEIGHT: 28px">
+							<div class="myLabel" id="lblJob">Contractor Name
+								<asp:Label id="Label2" runat="server" CssClass="myStar" Width="8px">  *</asp:Label></div>
+						</td>
+						<td style="WIDTH: 100px; HEIGHT: 28px">
+							<asp:DropDownList id="cmbContrCd" tabIndex="1" runat="server" CssClass="myInput" Width="248px" AutoPostBack="True"  OnSelectedIndexChanged="cmbContrCd_SelectedIndexChanged"></asp:DropDownList></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 176px; HEIGHT: 8px">
+							<div class="myLabel" id="lblYear">Password&nbsp;
+								<asp:Label id="Label3" runat="server" CssClass="myStar" Width="8px">  * </asp:Label></div>
+						</td>
+						<td style="WIDTH: 100px; HEIGHT: 8px">
+							<asp:TextBox id="txtPass" tabIndex="3" runat="server" CssClass="myInput" Height="14.25pt" Width="128px"
+								ToolTip="Min Length is 6 and Max Length 20" MaxLength="8" TextMode="Password"></asp:TextBox></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 176px; HEIGHT: 20px">
+							<div class="myLabel" id="lblLogin">LoginID 
+								Generated&nbsp;</div>
+						</td>
+						<td style="WIDTH: 100px; HEIGHT: 20px">
+							<asp:TextBox id="txtLoginID" tabIndex="3" ForeColor="Black" runat="server" CssClass="myInput"
+								Height="14.25pt" Width="244px" ToolTip="Max Length 20" MaxLength="30" Enabled="False" BackColor="#FFFFC0"></asp:TextBox></td>
+					</tr>
+					<tr>
+						<td style="WIDTH: 176px; HEIGHT: 8px">
+							<div class="myLabel" id="lblMnth">&nbsp;</div>
+						</td>
+						<td style="WIDTH: 100px; HEIGHT: 8px">
+							<asp:Button id="btSubmit" tabIndex="11" runat="server" CssClass="myButton" Width="104px" Text="Ok" OnClick="btSubmit_Click"></asp:Button></td>
+					</tr> <!--	<tr>
+						<td style="WIDTH: 250px; HEIGHT: 21px" align="center" colSpan="2"></td>
+					</tr>--></table>
+		 
+</asp:Content>

@@ -1,0 +1,339 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Data;
+using System.Collections;
+
+public partial class RA_Merge_Bills : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null)
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());               
+            }
+            else
+            {
+                Response.Redirect("Login.aspx");
+            }
+        }
+    }
+
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("VEND".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_MASTER where C_CODE=:C_CODE");
+            paramList.Add("C_CODE", userId);
+        }
+        else if ("BE".Equals(userRole) || "AC".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE='Y'  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+        }
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+
+        if (gvBillsAdded.Rows.Count > 0)
+        {
+            trBillMerge.Visible = true;
+        }
+        else
+        {
+            trBillMerge.Visible = false;
+        }
+    }
+
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append("SELECT DISTINCT b.TENDER_NO||'~'||b.part_no tender_part, b.tender_no||'-'|| b.part_no || ' ( '||b.TITLE||')' description  ")
+             .Append(" FROM  RAB_TENDER_USERS a,RAB_TENDER_MASTER b ")
+               .Append(" WHERE b.JOB_NO=:JOB_NO ")
+               .Append(" AND EMPNO=:EMPNO ")
+               .Append(" AND ROLE=:ROLE ")
+               .Append(" and b.job_no=A.JOB_NO")
+              .Append(" and A.TENDER_NO=b.TENDER_NO")
+              .Append(" and A.PART_NO=b.PART_NO")
+               .Append(" ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+
+        }
+        else if ("VEND".Equals(Session["ROLE"].ToString()))
+        {
+            sbQuery.Append(" SELECT DISTINCT ")
+              .Append("TENDER_NO||'~'||a.part_no tender_part, ")
+              .Append(" tender_no||'-'|| a.part_no||' ( '||A.TITLE||')'  description ")
+              .Append(" FROM RAB_TENDER_MASTER a ")
+               .Append("WHERE     JOB_NO =:JOB_NO ")
+              .Append("  AND C_CODE =:C_CODE ")
+               .Append("ORDER BY tender_part ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("C_CODE", Session["USERID"].ToString());
+        }
+        else
+        {
+            sbQuery.Append(" Select DISTINCT TENDER_NO||'~'||a.part_no tender_part, tender_no||'-'|| a.part_no||' ( '||a.TITLE||')' description ")
+                      .Append(" FROM RAB_TENDER_MASTER a ")
+                     .Append(" WHERE JOB_NO=:JOB_NO ")
+                     .Append(" ORDER BY tender_part");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "tender_part", "description", "", "--Select Tender Number--");
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+            bindTenders(ddJobNumber.SelectedValue);
+        }
+        else
+        {
+            Common.Show("Please select Job Number");
+        }
+    }
+
+    protected void bindBillsAdded(string jobNumber, string tenderNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        string[] strArray = tenderNumber.Split('~');
+        sbQuery.Append(@"SELECT TEND_SOR_ID,
+                                 RUN_SL_NO,
+                                 TO_CHAR (RUN_SL_DATE, 'dd-Mon-yyyy') RUN_SL_DATE,RA_FINAL_BILL_NO  , TO_CHAR (PERIOD_FROM, 'dd-Mon-yyyy') ||' To '||TO_CHAR (PERIOD_TO, 'dd-Mon-yyyy')  RA_Bill_Period,RA_BLL_NO,CONT_ID
+                            FROM RAB_TENDER_BILL
+                           WHERE UPPER (TEND_SOR_ID) IN
+                                    (SELECT distinct (a.TEND_SOR_ID)
+                                       FROM RAB_TENDER_MASTER a, RAB_BILL_ACTIVITY b
+                                      WHERE a.job_no =:job_no AND a.tender_no =:tender_no and a.PART_NO=:PART_NO
+                                        and A.JOB_NO=B.JOB_NO
+                                            and A.TEND_SOR_ID=B.TEND_SOR_ID) and RA_FINAL_BILL_NO like '%.%'
+                        GROUP BY TEND_SOR_ID, TO_CHAR (RUN_SL_DATE, 'dd-Mon-yyyy'), RUN_SL_NO,RA_FINAL_BILL_NO, TO_CHAR (PERIOD_FROM, 'dd-Mon-yyyy')  ,TO_CHAR (PERIOD_TO, 'dd-Mon-yyyy'), RA_BLL_NO,CONT_ID
+                        ORDER BY RUN_SL_NO DESC");
+
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("job_no", jobNumber);
+        paramList.Add("tender_no", strArray[0]);
+        paramList.Add("PART_NO", strArray[1]);
+        objDB.bindGridView(gvBillsAdded, sbQuery.ToString(), paramList);
+        if (gvBillsAdded.Rows.Count > 0)
+        {
+            trBillMerge.Visible = true;
+        }
+        else
+        {
+            trBillMerge.Visible = false;
+        }
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue) && !"".Equals(ddTenderNo.SelectedValue))
+        {
+            string[] strArray = ddTenderNo.SelectedValue.Split('~');
+     
+                bindBillsAdded(ddJobNumber.SelectedValue, ddTenderNo.SelectedValue);
+                trOldBills.Visible = true;            
+        }
+        else
+        {        
+            Common.Show("Please select Job Number and Tender Number");
+        }
+    }
+
+    protected void btnMerge_Click(object sender, EventArgs e)
+    {
+        DataTable dt = new DataTable();
+        dt.Columns.AddRange(new DataColumn[5] { new DataColumn("tenderSorId"), new DataColumn("billNumber"), new DataColumn("contractorId"), new DataColumn("billSequenceNumber"), new DataColumn("overallSequenceNumber") });
+        int rowsSelected = 0;
+        ArrayList runningSrNoLst = new ArrayList();
+        ArrayList overallrunningSrNoLst = new ArrayList();
+        string contractorId = "";
+        string tenderSORId = "";
+        string raBillnumber = "";
+        foreach (GridViewRow row in gvBillsAdded.Rows)
+        {
+            if (row.RowType == DataControlRowType.DataRow)
+            {
+                CheckBox chkSelect = (row.Cells[0].FindControl("chkSelect") as CheckBox);
+                if (chkSelect.Checked)
+                {
+                    rowsSelected++;
+                      HiddenField hdTenderSorId = (row.Cells[0].FindControl("hdTenderSorId") as HiddenField);
+                      HiddenField hdBillRunningSRNo = (row.Cells[0].FindControl("hdBillRunningSRNo") as HiddenField);
+                      HiddenField hdBillingDate = (row.Cells[0].FindControl("hdBillingDate") as HiddenField);
+                      HiddenField hdRABillNumber = (row.Cells[0].FindControl("hdRABillNumber") as HiddenField);
+                      HiddenField hdRARunningBillNo = (row.Cells[0].FindControl("hdRARunningBillNo") as HiddenField);
+                      HiddenField hdContractorId = (row.Cells[0].FindControl("hdContractorId") as HiddenField);
+                      dt.Rows.Add(hdTenderSorId.Value, hdRABillNumber.Value, hdContractorId.Value, hdBillRunningSRNo.Value, hdRARunningBillNo.Value);
+                      runningSrNoLst.Add(int.Parse(hdBillRunningSRNo.Value));
+                      overallrunningSrNoLst.Add(int.Parse(hdRARunningBillNo.Value));
+                      contractorId = hdContractorId.Value;
+                      tenderSORId = hdTenderSorId.Value;
+                      raBillnumber = hdRABillNumber.Value;
+                }
+            }
+        }
+        if (txtMergedBillNumber.Text.Length < 5)
+        {
+            lblError.Text = "Error: Kindly enter the final merged bill number.";
+        }
+        else if (rowsSelected < 2)
+        {
+            lblError.Text = "Error: Kindly select atleast 2 bills to merge.";
+        }
+        else
+        { 
+            //Merge bill
+            //first get the minimum running serial number and running overall serial number
+            // Tender SOR ID and Contractor ID to merge the details
+            int recordsAffected = 0;
+            int minSerialNumber = 0;
+            int minOverallSerialNumber = 0;
+            if (runningSrNoLst.Count >= 2 && overallrunningSrNoLst.Count >= 2)
+            {
+                minSerialNumber = GetMinValue(runningSrNoLst);
+                minOverallSerialNumber = GetMinValue(overallrunningSrNoLst);
+            }
+
+            if (minSerialNumber > 0 && minOverallSerialNumber > 0)
+            { 
+                //Execute queries
+
+                ArrayList lstArrayInsertQueries = new ArrayList();
+                ArrayList insertParamList = new ArrayList();
+                
+                StringBuilder sbUpdate = new StringBuilder();
+                sbUpdate.Append(@" update  RAB_TENDER_BILL a set                    A.RUN_SL_NO=:RUN_SL_NO,A.RA_BLL_NO=:RA_BLL_NO,A.RA_FINAL_BILL_NO=:RA_FINAL_BILL_NO
+                        where
+                        upper(RA_FINAL_BILL_NO) LIKE upper('%"+raBillnumber.Substring(0,raBillnumber.IndexOf("."))+ "%') AND CONT_ID =:CONT_ID and TEND_SOR_ID=:TEND_SOR_ID");
+                Dictionary<string, string> param = new Dictionary<string, string>();
+                param.Add("RUN_SL_NO", minSerialNumber.ToString());
+                param.Add("RA_BLL_NO", minOverallSerialNumber.ToString());
+                param.Add("RA_FINAL_BILL_NO", txtMergedBillNumber.Text.ToString());
+                param.Add("CONT_ID", contractorId);
+                param.Add("TEND_SOR_ID", tenderSORId);
+
+                lstArrayInsertQueries.Add(sbUpdate.ToString());
+                insertParamList.Add(param);
+
+
+                StringBuilder sbUpdate2 = new StringBuilder();
+                sbUpdate2.Append(@" update rab_tender_msheet a set A.RUN_SL_NO=:RUN_SL_NO where ADDED_BY =:CONT_ID
+                                    AND RUN_SL_NO >=:RUN_SL_NO1
+                                    AND TENDER_SOR_ID =:TEND_SOR_ID");
+                Dictionary<string, string> param2 = new Dictionary<string, string>();
+                param2.Add("RUN_SL_NO", minSerialNumber.ToString());
+                param2.Add("RUN_SL_NO1", minSerialNumber.ToString());      
+                param2.Add("CONT_ID", contractorId);
+                param2.Add("TEND_SOR_ID", tenderSORId);
+
+                lstArrayInsertQueries.Add(sbUpdate2.ToString());
+                insertParamList.Add(param2);
+                string[] strArray = ddTenderNo.SelectedValue.Split('~');
+                 StringBuilder sbUpdate3 = new StringBuilder();
+                 sbUpdate3.Append(@"update RAB_BILL_ACTIVITY set RA_BLL_NO=:MERGED_BILL_NO,RUN_SL_NO=:RUN_SL_NO  where JOB_NO=:JOB_NO and TENDER_NO=:TENDER_NO and TEND_SOR_ID=:TEND_SOR_ID and upper(RA_BLL_NO) LIKE upper('%" + raBillnumber.Substring(0, raBillnumber.IndexOf(".")) + "%') ");
+               Dictionary<string, string> param3 = new Dictionary<string, string>();
+               param3.Add("MERGED_BILL_NO", txtMergedBillNumber.Text.ToString());
+               param3.Add("JOB_NO", ddJobNumber.SelectedValue);
+               param3.Add("TENDER_NO", strArray[0]);
+               param3.Add("RUN_SL_NO", minSerialNumber.ToString());
+               param3.Add("TEND_SOR_ID", tenderSORId);
+
+               lstArrayInsertQueries.Add(sbUpdate3.ToString());
+               insertParamList.Add(param3);
+
+                if (lstArrayInsertQueries.Count > 0)
+                {
+                    string[] queryArray = new String[lstArrayInsertQueries.Count];
+                    Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[insertParamList.Count];
+                    for (int ii = 0; ii < lstArrayInsertQueries.Count; ii++)
+                    {
+                        queryArray[ii] = lstArrayInsertQueries[ii].ToString();
+                        paramListArray[ii] = (Dictionary<string, string>)insertParamList[ii];
+                    }
+                    if (queryArray.Length > 0)
+                    {
+                         recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+                    }
+                }
+            }
+
+            if (recordsAffected > 0)
+            {
+                Common.Show("Bill merged successfully!");
+            }
+            else
+            {
+                Common.Show("Error in merging the bills, Kindly contact Software Co-ordinator for further help!");
+            }
+        }
+    }
+
+    public int GetMinValue(ArrayList arrList)
+    {
+        ArrayList sortArrayList = arrList;
+        sortArrayList.Sort();
+        return int.Parse(sortArrayList[0].ToString());
+    }
+
+    protected void btnPopulateData_Click(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+                try
+                {
+                    populateJobData(ddJobNumber.SelectedValue);
+                    Common.Show("Job Data populated succesfully");
+                }
+                catch (Exception err)
+                {
+                    Common.Show("Error in populationg the data");
+                }            
+        }
+        else
+        {
+            Common.Show("Please select Job Number");
+        }
+    }
+
+    public void populateJobData(string jobNumber)
+    {
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("t_jobno", jobNumber);
+        paramList.Add("t_empno", Session["USERID"].ToString());
+        objDB.executeProcedure("WEBCONS.rab_populate_tender_data", paramList);
+        updateRecords();
+    }
+    public void updateRecords()
+    {
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        objDB.executeProcedure("WEBCONS.rab_upd_rec", paramList);        
+    }
+}

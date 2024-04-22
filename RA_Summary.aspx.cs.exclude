@@ -1,0 +1,100 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Collections;
+
+public partial class RA_Summary : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    public string jobNumber = "A095";
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        
+        if (!IsPostBack)
+        {
+            lblJobNumber.Text = jobNumber;
+            bindTenders(jobNumber);
+        }
+    }
+
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+       
+            sbQuery.Append(" Select DISTINCT TENDER_NO, tenderno||' ( '||b.title||' '||b.title1||')' description ")
+                    .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+                   .Append(" WHERE JOB_NO=:JOB_NO ")
+                   .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+                   .Append(" and A.TENDER_NO=b.tendersrno")
+                   .Append(" ORDER BY TENDER_NO");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "TENDER_NO", "description", "", "--Select Tender Number--");
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+
+        if (!"".Equals(ddTenderNo.SelectedValue))
+        {
+            bindSORItems(jobNumber,ddTenderNo.SelectedValue);
+        }
+    }
+
+    protected void bindSORItems( string jobNumber, string tenderNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();       
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        sbQuery.Append(" SELECT REF_ID,  ")
+         .Append(" SEQ_NO,  ")
+         .Append(" ITEM_RATE,  ")
+         .Append(" UOM,  SORT_NO,   ACT_DESC, ACT_PERCENT, ACT_SEQ, ADDED_ON, SITE_QTY,HO_QTY,")
+         .Append(" ACT_PROG, FLAG_HO, sdesc, nvl(ldesc,ra_get_seq_desc(SEQ_NO,sdesc)) ldesc, TEND_SOR_ID,qty ,(HO_QTY * ITEM_RATE) totHO,(qty * ITEM_RATE) totSite ")
+         .Append(" from  ")
+ .Append(" (        ")
+  .Append(" (   ")
+  .Append(" SELECT a.REF_ID, a.SEQ_NO, nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE, a.UOM, a.SORT_NO, ACT_DESC,  ")
+         .Append(" ACT_PERCENT, ACT_SEQ, ADDED_ON,SITE_QTY, HO_QTY, ACT_PROG, FLAG_HO,  ")
+         .Append(" a.sorno sdesc,TO_CHAR (ldesc) ldesc, C.TEND_SOR_ID,ra_get_summary(a.SEQ_NO,b.JOB,b.jtn) qty  ")
+    .Append(" FROM RAB_ITEM_BREAKUP a, icms_cba.cba_tender b, RAB_TENDER_MASTER c  ")
+   .Append(" WHERE     A.SEQ_NO = B.SEQNO  ")
+         .Append(" AND b.JOB =:JOBNO  ")
+         .Append(" AND b.jtn =:TENDER_NO  ")
+         .Append(" AND B.SORNO = A.SORNO  ")
+         .Append(" AND C.SOR_NO = A.SORNO  ")
+         .Append(" AND C.REF_ID = A.REF_ID  ")
+         .Append(" and flag_ho='N'  ");
+        
+        sbQuery.Append("  )  ")
+       .Append("   union  ")
+        .Append("  (  ")
+        .Append("  SELECT a.REF_ID,a.SEQ_NO, nvl(a.ITEM_RATE_EDITED,a.ITEM_RATE) ITEM_RATE, a.UOM, a.SORT_NO, ACT_DESC,ACT_PERCENT,  ")
+         .Append(" ACT_SEQ, ADDED_ON, SITE_QTY, HO_QTY,  ACT_PROG, FLAG_HO, a.sorno sdesc,  ")
+         .Append(" TO_CHAR (ACT_DESC) ldesc, C.TEND_SOR_ID,ra_get_summary(a.SEQ_NO,'','') qty  ")
+    .Append(" FROM RAB_ITEM_BREAKUP a, RAB_TENDER_MASTER c  ")
+   .Append(" WHERE     C.SOR_NO = A.SORNO  ")
+         .Append(" AND C.REF_ID = A.REF_ID  ")
+         .Append(" and flag_ho='Y'  ")
+        .Append(" and C.REF_ID in (select distinct ref_id from RAB_TENDER_MASTER where JOB_NO=:JOB_NO2 and TENDER_NO=:TENDER_NO2)");
+       
+        sbQuery.Append(" )  ")
+        .Append(" )  ")
+            .Append(" ORDER BY  sdesc,SORT_NO,SEQ_NO  ");
+
+        paramList.Add("JOBNO", jobNumber);
+        paramList.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList.Add("JOB_NO2", jobNumber);
+        paramList.Add("TENDER_NO2", ddTenderNo.SelectedValue);
+        //  paramList.Add("REF_ID", tenderSORreferenceId);        
+
+        objDB.bindGridView(gvSORItems, sbQuery.ToString(), paramList);        
+    }
+}

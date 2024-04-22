@@ -1,0 +1,669 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using System.Data;
+using ClosedXML.Excel;
+using System.IO;
+using Microsoft.Office.Interop.Excel;
+using System.Runtime.InteropServices;
+using AppCode;
+
+
+using iTextSharp.text;
+using iTextSharp.text.html.simpleparser;
+using iTextSharp.text.pdf;
+using iTextSharp.tool.xml;
+using System.Web.UI.HtmlControls;
+
+public partial class RA_Bill_Excel : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] != null)
+        {
+            if (Session["MEASUREMENT_SHEET"] != null)
+            {
+                generateMeasurement_sheet();
+            }
+            else if (Session["RABILL_Abstract"] != null)
+            {
+                generateRAAbstract();
+            }
+            else if (Session["Excess_Saving_Satement"] != null)
+            {
+                generate_Excess_saving_statement();
+            }
+            else
+            {
+                Response.Redirect("Default.aspx");
+            }
+        }
+        else
+        {
+            Response.Redirect("Login.aspx");
+        }
+        //ExportToExcelXML();
+    }
+
+    protected void generateMeasurement_sheet()
+    {
+        string fileName = "";
+        fileName = Server.MapPath("/rabilling/Std/RA_Measurement_Sheet_template.xlsx");
+        string tempFileName = "";
+        tempFileName = @"Measurement_Sheet_" + Session["USERID"].ToString() + ".xlsx";
+        try
+        {
+            var workbook = new XLWorkbook(fileName);
+            var ws = workbook.Worksheet("Abstract");
+
+            //Filing data in the Excel by datatable
+
+            if (Session["JOB_NUMBER"] != null)
+            {
+                ws.Cell(1, 1).Value = "Job Number: " + Session["JOB_NUMBER"].ToString();
+            }
+
+            if (Session["TENDER_NUMBER"] != null)
+            {
+                ws.Cell(2, 1).Value = "Tender Number: " + Session["TENDER_NUMBER"].ToString();
+            }
+
+            if (Session["CONTRACTOR_NAME"] != null)
+            {
+                ws.Cell(4, 1).Value = Session["CONTRACTOR_NAME"].ToString();
+            }
+
+            //if ("VEND".Equals(Session["ROLE"].ToString()) && Session["NAME"] != null)
+            //{
+            //    ws.Cell(4, 1).Value = "Contractor Name: " + Session["NAME"].ToString() + "(" + Session["USERID"].ToString() + ")";
+            //}
+            //else
+            //{
+            //    string contractorName= "";
+            //    ws.Cell(4, 1).Value = contractorName;
+            //}
+
+            //Changed by Ganesh Chavan (C665) Date-20-4-2017
+            //Column C = Wrap text
+            ws.Column(3).Style.Alignment.WrapText = true;
+            ws.Column(3).Style.Alignment.ShrinkToFit = true;
+            ws.Column(3).Width = 80;
+            ws.Column(3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+            //ws.Column(3).Style.Fill.BackgroundColor = XLColor.Blue;
+
+            ws.Column(12).Style.Alignment.WrapText = true;
+            ws.Column(12).Style.Alignment.ShrinkToFit = true;
+            ws.Column(12).Width = 30;
+            ws.Column(12).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+
+            var rangeWithData = ws.Cell(9, 1).InsertData(((System.Data.DataTable)Session["MEASUREMENT_SHEET"]).AsEnumerable());
+
+            //Setting values at specified location in the Excel
+            //ws.Cell(5, 2).Value = "RA Bill Period Upto: " + DateTime.Today.ToString();
+
+            ws.Cell(5, 1).Value = "RA Bill : From " + Session["BillPeriod"].ToString() + " and Running Account Bill No:- " + Session["RABILL"].ToString();
+
+
+            //Setting Border of the cells
+//commented on 01/11/2021 by SK
+           // rangeWithData.Style.Border.SetInsideBorder(XLBorderStyleValues.Thin);
+           // rangeWithData.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+           // rangeWithData.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+           // rangeWithData.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+
+            workbook.SaveAs(Server.MapPath("/rabilling/Temporary_files/" + tempFileName + ""));
+            string filePath = Server.MapPath("/rabilling/Temporary_files/" + tempFileName);
+
+            // Opening xls file on client side
+            Response.Clear();
+            Response.ClearContent();
+            Response.ClearHeaders();
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            Response.AddHeader("content-disposition", "attachment;filename=" + tempFileName + ""); //File name can be changed here
+            Response.TransmitFile(filePath);
+            HttpContext.Current.ApplicationInstance.CompleteRequest();
+            Response.Flush();
+            Response.End();
+            workbook.Dispose();
+        }
+        catch (Exception err)
+        {
+            Response.Write(err.Message);
+        }
+    }
+
+
+    protected void generate_Excess_saving_statement()
+    {
+        string fileName = "";
+        fileName = Server.MapPath("/rabilling/Std/RA_Excess_Final_template.xlsx");
+        string tempFileName = "";
+        tempFileName = @"Excess_Saving_Statement_" + Session["USERID"].ToString() + ".xlsx";
+        try
+        {
+            var workbook = new XLWorkbook(fileName);
+            var ws = workbook.Worksheet("Abstract");
+
+            //Filing data in the Excel by datatable
+
+            if (Session["JOB_NUMBER"] != null)
+            {
+                ws.Cell(1, 1).Value = "Job Number: " + Session["JOB_NUMBER"].ToString();
+            }
+
+            if (Session["TENDER_NUMBER"] != null)
+            {
+                ws.Cell(2, 1).Value = "Tender Number: " + Session["TENDER_NUMBER"].ToString();
+            }
+
+            if (Session["CONTRACTOR_NAME"] != null)
+            {
+                ws.Cell(4, 1).Value = Session["CONTRACTOR_NAME"].ToString();
+            }
+            //Changed by Ganesh Chavan (C665) Date-20-4-2017
+            //Column C = Wrap text
+            ws.Column(3).Style.Alignment.WrapText = true;
+            ws.Column(3).Style.Alignment.ShrinkToFit = true;
+            ws.Column(3).Width = 60;
+            ws.Column(3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+            //ws.Column(3).Style.Fill.BackgroundColor = XLColor.Blue;
+
+            var rangeWithData = ws.Cell(9, 1).InsertData(((System.Data.DataTable)Session["Excess_Saving_Satement"]).AsEnumerable());
+
+            //Setting Border of the cells
+            rangeWithData.Style.Border.SetInsideBorder(XLBorderStyleValues.Thin);
+            rangeWithData.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            rangeWithData.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+            rangeWithData.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+
+            workbook.SaveAs(Server.MapPath("/rabilling/Temporary_files/Excess_Saving_Statement_") + Session["USERID"].ToString() + ".xlsx");
+
+            string filePath = Server.MapPath("/rabilling/Temporary_files/" + tempFileName);
+
+            // Opening xls file on client side
+            Response.Clear();
+            Response.ClearContent();
+            Response.ClearHeaders();
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            Response.AddHeader("content-disposition", "attachment;filename=" + tempFileName + ""); //File name can be changed here
+            Response.TransmitFile(filePath);
+            HttpContext.Current.ApplicationInstance.CompleteRequest();
+            Response.Flush();
+            Response.End();
+            workbook.Dispose();
+        }
+        catch (Exception err)
+        {
+            Response.Write(err.Message);
+        }
+    }
+
+    protected void generateExcelFile()
+    {
+        string fileName = "";
+        fileName = Server.MapPath("/rabilling/Temporary_files/RA_Bill_Abstract_template.xlsx");
+        string tempFileName = "";
+        tempFileName = @"RA_Bill_Abstract_" + Session["USERID"].ToString() + ".xlsx";
+
+        string tempPDFFileName = "";
+        tempPDFFileName = @"RA_Bill_Abstract_" + Session["USERID"].ToString() + ".pdf";
+        try
+        {
+            using (var workbook = new XLWorkbook(fileName))
+            {
+                var ws = workbook.Worksheet("Abstract");
+
+                //Filing data in the Excel by datatable
+
+                if (Session["JOB_NUMBER"] != null)
+                {
+                    ws.Cell(1, 2).Value = "Job Number: " + Session["JOB_NUMBER"].ToString();
+                }
+
+                if (Session["TENDER_NUMBER"] != null)
+                {
+                    ws.Cell(2, 2).Value = "Tender Number: " + Session["TENDER_NUMBER"].ToString();
+                }
+
+                //if ("VEND".Equals(Session["ROLE"].ToString()) && Session["NAME"] != null)
+                //{
+                //    ws.Cell(4, 2).Value = "Contractor Name: " + Session["NAME"].ToString() + "(" + Session["USERID"].ToString() + ")";
+                //}
+
+                if (Session["CONTRACTOR_NAME"] != null)
+                {
+                    ws.Cell(4, 2).Value = Session["CONTRACTOR_NAME"].ToString();
+                }
+
+                var rangeWithData = ws.Cell(9, 2).InsertData(((System.Data.DataTable)Session["RABILL"]).AsEnumerable());
+
+                //Setting values at specified location in the Excel
+                if (Session["RA_DATE"] !=null)
+                ws.Cell(5, 2).Value = "RA Bill : From " + Session["RA_DATE"].ToString();
+                if (Session["RA_BLL_NO"] != null)
+                ws.Cell(5, 13).Value = "Running Account Bill No: " + Session["RA_BLL_NO"].ToString();
+
+                //Setting Border of the cells
+                rangeWithData.Style.Border.SetInsideBorder(XLBorderStyleValues.Thin);
+                rangeWithData.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+                rangeWithData.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+                rangeWithData.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+
+                workbook.SaveAs(Server.MapPath("/rabilling/Temporary_files/RA_Bill_Abstract_") + Session["USERID"].ToString() + ".xlsx");
+                workbook.Dispose();
+
+                string filePath = Server.MapPath("/rabilling/Temporary_files/" + tempFileName);
+                if (!"FA".Equals(Session["ROLE"].ToString()))
+                {
+                    // Opening xls file on client side
+                    Response.Clear();
+                    Response.ClearContent();
+                    Response.ClearHeaders();
+                    Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                    Response.AddHeader("content-disposition", "attachment;filename=RA_Bill.xlsx"); //File name can be changed here
+                    Response.TransmitFile(filePath);
+                    Response.End();
+                }
+
+                //if ("FA".Equals(Session["ROLE"].ToString()))
+                else
+                {
+                    //PDF generation code
+                    string pdffilePath = Server.MapPath("/rabilling/Temporary_files/" + tempPDFFileName);
+                    Application app = new Application();
+                    Workbook wkb = app.Workbooks.Open(filePath);
+                    wkb.ExportAsFixedFormat(XlFixedFormatType.xlTypePDF, pdffilePath);
+                    Response.Clear();
+                    Response.ClearContent();
+                    Response.ClearHeaders();
+                    Response.ContentType = "application/pdf";
+                    Response.AddHeader("content-disposition", "attachment;filename=RA_Bill.pdf"); //File name can be changed here
+                    Response.TransmitFile(pdffilePath);
+                    wkb.Close();
+                    app.Quit();
+
+                    //Killing Excel Process
+                    int pid = -1;
+                    //Get PID
+                    HandleRef hwnd = new HandleRef(app, (IntPtr)app.Hwnd);
+                    GetWindowThreadProcessId(hwnd, out pid);
+                    //Finally
+                    KillProcess(pid, "EXCEL");
+                    //PDF code ends            
+
+                    HttpContext.Current.ApplicationInstance.CompleteRequest();
+                    Response.End();
+                }
+            }
+        }
+        catch (Exception err)
+        {
+            Response.Write(err.Message);
+        }
+
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern int GetWindowThreadProcessId(HandleRef handle, out int processId);
+
+    private void KillProcess(int pid, string processName)
+    {
+        // to kill current process of excel
+        System.Diagnostics.Process[] AllProcesses = System.Diagnostics.Process.GetProcessesByName(processName);
+        foreach (System.Diagnostics.Process process in AllProcesses)
+        {
+            if (process.Id == pid)
+            {
+                process.Kill();
+            }
+        }
+        AllProcesses = null;
+    }
+
+    protected void generateRAAbstract()
+    {
+        if (Session["Abstract_TYPE"] != null && "PDF".Equals(Session["Abstract_TYPE"].ToString()))
+        {
+            if (Session["JOB_NUMBER"] != null)
+            {
+                lblJobNumber.Text = Session["JOB_NUMBER"].ToString();
+            }
+            if (Session["TENDER_NUMBER"] != null)
+            {
+                lblTenderNo.Text = Session["TENDER_NUMBER"].ToString();
+            }
+
+            if (Session["CONTRACTOR_NAME"] != null)
+            {
+                lblContractorName.Text = Session["CONTRACTOR_NAME"].ToString();
+            }
+
+            if (Session["BillPeriod"] != null)
+                lblRADate.Text = "From " + Session["BillPeriod"].ToString();
+            if (Session["RABILL"] != null)
+                lblRABillNo.Text = Session["RABILL"].ToString();
+
+            generatePDFReport((System.Data.DataTable)Session["RABILL_Abstract"]);
+        }
+        else if (Session["Abstract_TYPE"] != null && "EXCEL".Equals(Session["Abstract_TYPE"].ToString()))
+        {
+            string fileName = "";
+            fileName = Server.MapPath("/rabilling/Std/RA_Abstract_Final_template.xlsx");
+            string tempFileName = "";
+            tempFileName = @"RA_Bill_Abstract_" + Session["USERID"].ToString() + ".xlsx";
+            try
+            {
+                var workbook = new XLWorkbook(fileName);
+                var ws = workbook.Worksheet("Abstract");
+
+                //Filing data in the Excel by datatable
+
+                if (Session["JOB_NUMBER"] != null)
+                {
+                    ws.Cell(1, 1).Value = "Job Number: " + Session["JOB_NUMBER"].ToString();
+                }
+
+                if (Session["TENDER_NUMBER"] != null)
+                {
+                    ws.Cell(2, 1).Value = "Tender Number: " + Session["TENDER_NUMBER"].ToString();
+                }
+
+                if (Session["CONTRACTOR_NAME"] != null)
+                {
+                    ws.Cell(4, 1).Value = Session["CONTRACTOR_NAME"].ToString();
+                }
+
+                //if ("VEND".Equals(Session["ROLE"].ToString()) && Session["NAME"] != null)
+                //{
+                //    ws.Cell(4, 1).Value = "Contractor Name: " + Session["NAME"].ToString() + "(" + Session["USERID"].ToString() + ")";
+                //}
+                //else
+                //{
+                //    string contractorName= "";
+                //    ws.Cell(4, 1).Value = contractorName;
+                //}
+
+                //Changed by Ganesh Chavan (C665) Date-20-4-2017
+                //Column C = Wrap text
+                ws.Column(3).Style.Alignment.WrapText = true;
+                ws.Column(3).Style.Alignment.ShrinkToFit = true;
+                ws.Column(3).Width = 100;
+                ws.Column(3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                //ws.Column(3).Style.Fill.BackgroundColor = XLColor.Blue;
+
+
+                System.Data.DataTable dtfinalData = new System.Data.DataTable();
+                dtfinalData = (System.Data.DataTable)Session["RABILL_Abstract"];
+
+                dtfinalData.Rows.Add("", "", "Certified that work has been done as per drawings/specifications and instructions of Engineer-in-Charge", "", "", "", "", "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", "", "", "", "", "", "", "", "", "", "", "", "", "");
+                dtfinalData.Rows.Add("", "", "Signature of Contractor            Signature of EIL                        Signature of Client", "", "", "", "", "", "", "", "", "", "", "");
+                var rangeWithData = ws.Cell(9, 1).InsertData(dtfinalData.AsEnumerable());
+
+                //var rangeWithData = ws.Cell(9, 1).InsertData(((System.Data.DataTable)Session["RABILL_Abstract"]).AsEnumerable());
+
+
+                //int row_num = 9;
+                //if (((System.Data.DataTable)Session["RABILL_Abstract"]).Rows.Count > 0)
+                //{
+                //    for (int i = 0; i < ((System.Data.DataTable)Session["RABILL_Abstract"]).Rows.Count; i++)
+                //    {
+                //        DataRow dr = ((System.Data.DataTable)Session["RABILL_Abstract"]).Rows[i];
+
+                //        Int32 oldVal = 0;
+                //        Int32 oldVal1 = 0;
+                //        Int32 oldVal2 = 0;
+
+                //        if (!string.IsNullOrEmpty(dr[4].ToString()))
+                //        {
+                //            oldVal = Convert.ToInt32(dr[4].ToString());// A value
+                //        }
+                //        if (!string.IsNullOrEmpty(dr[5].ToString()))
+                //        {
+                //            oldVal1 = Convert.ToInt32(dr[5].ToString());// B value
+                //        }
+
+                //        if (!string.IsNullOrEmpty(dr[5].ToString()))
+                //        {
+                //            oldVal2 = Convert.ToInt32(dr[5].ToString()); // C value
+                //        }
+
+                //        if (oldVal2 <= oldVal * oldVal1) // C > (A + B)
+                //        {
+                //            ws.Row(row_num + i).Style.Fill.BackgroundColor = XLColor.Green; 
+                //        }
+                //    }
+                //}
+
+                //End here
+
+                //Setting values at specified location in the Excel
+                ws.Cell(5, 1).Value = "RA Bill : From " + Session["BillPeriod"].ToString() + " and Running Account Bill No:- " + Session["RABILL"].ToString();
+                Int32 total_count = 0;
+                if (Session["highlight_cell_Total"]!=null)
+                total_count = Convert.ToInt32(Session["highlight_cell_Total"].ToString());
+
+                Int32 gross_count = 0;
+                if (Session["highlight_cell_Gross"] != null)
+                gross_count = Convert.ToInt32(Session["highlight_cell_Gross"].ToString());
+
+
+                //Logic to highlight the cell whose Qty is greatrer than SOR Qty 26-04-2018 (By Rajesh)
+
+                int row_num = 9;
+                if (((System.Data.DataTable)Session["RABILL_Abstract"]).Rows.Count > 0)
+                {
+                    for (int i = 0; i < ((System.Data.DataTable)Session["RABILL_Abstract"]).Rows.Count; i++)
+                    {
+                        DataRow dr = ((System.Data.DataTable)Session["RABILL_Abstract"]).Rows[i];
+
+                        double sorQty = 0;
+                        double uptoDateQty = 0;
+
+                        if (!string.IsNullOrEmpty(dr[4].ToString()) && !string.IsNullOrEmpty(dr[9].ToString()))
+                        {
+                            try
+                            {
+                                sorQty = Convert.ToDouble(dr[4].ToString());// E value
+                                uptoDateQty = Convert.ToDouble(dr[9].ToString());// J value
+
+                                if ((uptoDateQty > 0 && sorQty > 0)) // J > E
+                                {
+                                    if (uptoDateQty > sorQty)
+                                    {
+                                        ws.Row(row_num + i).Style.Fill.BackgroundColor = XLColor.RaspberryGlace;
+                                    }
+                                    //if (ws.Cell(i, 10).Value.ToString().Length > 0)
+                                    //{
+                                    //    ws.Cell(i, 10).Style.Fill.BackgroundColor = XLColor.Red;
+                                    //}
+                                }
+                            }
+                            catch (Exception err) { }
+                        }
+                    }
+                }
+
+                //Logic ends
+
+
+                //Highlight and bold column J, K, L, M in excel file
+                 try
+                {
+                for (int m = 0; m <= 3; m++)
+                {
+                    for (int n = 10; n <= 13; n++)
+                    {
+                        ws.Cell(total_count + m, n).Style.Font.Bold = true;
+                        ws.Cell(total_count + m, n).Style.Fill.BackgroundColor = XLColor.AirForceBlue;
+                        if (Session["Extra_Items_flag"]!=null && "Y".Equals(Session["Extra_Items_flag"].ToString()))
+                        {
+                            ws.Cell(gross_count, n).Style.Font.Bold = true;
+                            ws.Cell(gross_count, n).Style.Fill.BackgroundColor = XLColor.AirForceBlue;
+                        }
+                    }
+                    if (m == 1)
+                    {
+                        m++;
+                    }
+                }
+                }
+                 catch (Exception err)
+                 { }
+
+                //Setting Border of the cells
+                rangeWithData.Style.Border.SetInsideBorder(XLBorderStyleValues.Thin);
+                rangeWithData.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+                rangeWithData.Style.Border.LeftBorder = XLBorderStyleValues.Thin;
+                rangeWithData.Style.Border.RightBorder = XLBorderStyleValues.Thin;
+
+                workbook.SaveAs(Server.MapPath("/rabilling/Temporary_files/RA_Bill_Abstract_") + Session["USERID"].ToString() + ".xlsx");
+
+                string filePath = Server.MapPath("/rabilling/Temporary_files/" + tempFileName);
+
+                // Opening xls file on client side
+                Response.Clear();
+                Response.ClearContent();
+                Response.ClearHeaders();
+                Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                Response.AddHeader("content-disposition", "attachment;filename=" + tempFileName + ""); //File name can be changed here
+                Response.TransmitFile(filePath);
+                HttpContext.Current.ApplicationInstance.CompleteRequest();
+                Response.Flush();
+                Response.End();
+                workbook.Dispose();
+            }
+            catch (Exception err)
+            {
+                Response.Write(err.Message);
+            }
+        }
+    }
+
+    private void ExportToExcelXML()
+    {
+        string fileName = "";
+        fileName = "231121" + "-" + System.DateTime.Now.ToString() + ".xlsx";
+        //fileName = Server.MapPath("\\ra_billing\\") + ViewState["RA_BLL_NO"].ToString() + ".xlsx";
+        System.Data.DataTable dt = new System.Data.DataTable();
+        if (Session["RABILL"] != null)
+        {
+            dt = (System.Data.DataTable)Session["RABILL"];
+        }
+
+        using (XLWorkbook wb = new XLWorkbook())
+        {
+            wb.Worksheets.Add(dt, "RABill");
+
+            Response.Clear();
+            Response.Buffer = true;
+            Response.Charset = "";
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            //  Response.AddHeader("content-disposition", "attachment;filename=Export.xlsx"); //File name can be changed here
+            Response.AddHeader("content-disposition", "attachment;filename=" + fileName); //File name can be changed here
+            // Response.ContentEncoding = Encoding.UTF8;
+            using (MemoryStream MyMemoryStream = new MemoryStream())
+            {
+                wb.SaveAs(MyMemoryStream);
+                MyMemoryStream.WriteTo(Response.OutputStream);
+                Response.Flush();
+                Response.End();
+            }
+        }
+    }
+
+    // To generate PDF
+    public void generatePDFReport(System.Data.DataTable dtAbstract)
+    {
+        string yearNow = System.DateTime.Now.Year.ToString();
+
+        string path = "~\\Reports\\ArchiveReports\\" + Session["JOB_NUMBER"].ToString() + "\\";
+
+        string severFilePath = Server.MapPath(path);
+
+        if (!System.IO.Directory.Exists(severFilePath))
+        {
+            System.IO.Directory.CreateDirectory(severFilePath);
+        }
+
+        severFilePath = severFilePath + yearNow;
+
+        if (!System.IO.Directory.Exists(severFilePath))
+        {
+            System.IO.Directory.CreateDirectory(severFilePath);
+        }
+
+        //string reportName = System.DateTime.Now.ToString().Replace(":", " ");
+        string reportName = DateTime.Now.ToString().Replace(":", "").Replace("/", "");
+        string fName = severFilePath + "\\" + reportName + ".pdf";
+
+        //Binded the data again as this data is not coming on page load
+
+        if (dtAbstract.Rows.Count > 0)
+        {
+            gvAbstract.DataSource = dtAbstract;
+            gvAbstract.DataBind();
+        }
+
+        bool reportGenerated = true;
+
+        //After succesfully generation of PDf insert the values in the report table
+        //Populate procedure to populate next month values and freeze current month data
+
+        using (StringWriter sw = new StringWriter())
+        {
+            using (HtmlTextWriter hw = new HtmlTextWriter(sw))
+            {
+                using (HtmlForm frm = new HtmlForm())
+                {
+                    pnlPDF.Parent.Controls.Add(frm);
+                    frm.Attributes["runat"] = "server";
+                    frm.Controls.Add(pnlPDF);
+                    frm.RenderControl(hw);
+                    using (StringReader sr = new StringReader(sw.ToString()))
+                    {
+                        using (Document pdfDoc = new Document(PageSize.A3.Rotate(), 10f, 10f, 10f, 0f))
+                        {
+                            try
+                            {
+                                using (PdfWriter strWrite = PdfWriter.GetInstance(pdfDoc, new FileStream(fName, FileMode.Create, FileAccess.Write)))
+                                {
+                                    pdfDoc.Open();
+                                    XMLWorkerHelper.GetInstance().ParseXHtml(strWrite, pdfDoc, sr);
+                                    pdfDoc.Close();
+                                    reportGenerated = true;
+                                }
+                            }
+                            catch (Exception err)
+                            {
+                                reportGenerated = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+        //string filePath = Server.MapPath("/RABilling/Reports/ArchiveReports/" + Session["JOB_NUMBER"].ToString() + fName);
+
+        // Opening xls file on client side
+        Response.Clear();
+        Response.ClearContent();
+        Response.ClearHeaders();
+        Response.ContentType = "application/octet-stream";
+        Response.AddHeader("content-disposition", "attachment;filename=Abstract.pdf"); //File name can be changed here
+        Response.TransmitFile(fName);
+        HttpContext.Current.ApplicationInstance.CompleteRequest();
+        Response.Flush();
+        Response.End();
+
+    }
+
+}

@@ -1,0 +1,14 @@
+
+insert into RAB_TENDER_BILL_MST ( BILL_NUMBER, PERIOD_FROM, PERIOD_TO, BILL_DATE, CONT_ID, JOB_NO,SUB_JOB, TENDER_NO, PART_NO, BILL_STATUS, TEND_SOR_ID, RUN_SL_NO, RA_BLL_NO) 
+select distinct RA_FINAL_BILL_NO,period_from,period_to,trunc(ra_date) ra_date,cont_id,JOB_No,            
+  SUB_JOB    ,
+  TENDER_NO ,
+  PART_NO,status ,a.tend_sor_id,RUN_SL_NO, RA_BLL_NO
+   from RAB_TENDER_BILL a,rab_tender_master b
+where
+A.TEND_SOR_ID=B.TEND_SOR_ID  and status='ACCEPTED BY RCM'
+order by SUB_JOB    ,
+  TENDER_NO ,
+  PART_NO,period_from  
+
+Sequence to be used RAB_TENDER_BILL_MST_SEQ (Reinitialise)   

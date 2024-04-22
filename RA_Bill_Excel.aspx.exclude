@@ -1,0 +1,44 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" CodeFile="RA_Bill_Excel.aspx.cs" Inherits="RA_Bill_Excel" %>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+    <title></title>
+</head>
+<body>
+    <form id="form1" runat="server">
+     <asp:Panel ID="pnlPDF" runat="server" >
+     <table width="100%">
+     <tr><td colspan="2" style="width:100%;font-weight:bolder" align="center">ABSTRACT FOR MEASUREMENTS AND PAYMENT</td></tr>
+     <tr>
+												
+
+     <td style="width:30%;font-weight:bold">Job Number:</td>
+     <td style="width:70%;font-weight:bold" align="left"> <asp:Label ID="lblJobNumber" runat="server"></asp:Label>
+     </td>
+     </tr>
+
+     <tr>
+     <td style="width:30%;font-weight:bold">Tender Number:</td>
+     <td style="width:70%;font-weight:bold"  align="left"><asp:Label ID="lblTenderNo" runat="server"></asp:Label></td>
+     </tr>
+
+     
+
+     <tr><td style="width:30%;font-weight:bold">Contractor Name:</td><td style="width:70%;font-weight:bold"  align="left"><asp:Label ID="lblContractorName" runat="server"></asp:Label></td></tr>
+
+     <tr><td style="width:30%;font-weight:bold">RA Bill Period:</td> <td style="width:70%;font-weight:bold"  align="left"> <asp:Label ID="lblRADate" runat="server"></asp:Label> </td></tr>
+     <tr><td style="width:30%;font-weight:bold">Running Account Bill No:</td> <td style="width:70%;font-weight:bold"  align="left"> <asp:Label ID="lblRABillNo" runat="server"></asp:Label>  </td></tr>
+     
+     <tr><td colspan="2"></td></tr>
+     <tr><td colspan="2"> <asp:GridView id="gvAbstract" runat="server" Width="100%">
+    </asp:GridView></td></tr>
+          <tr><td colspan="2" style="width:100%;font-weight:bolder" align="left">Certified that work has been certified as per drawings/specifications and instructions of Engineer-in-charge.</td></tr>
+     </table>
+   
+
+    </asp:Panel>
+    </form>
+</body>
+</html>

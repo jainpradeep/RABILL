@@ -1,0 +1,195 @@
+﻿Imports System.Configuration
+Imports System.Collections
+Imports System.Data.OleDb
+Imports System.Data.OleDb.OleDbCommand
+Imports System
+Imports System.Web.UI.WebControls
+Imports System.Data
+
+Partial Class RA_Users
+    Inherits System.Web.UI.Page
+    Dim objDbFunction As New AppCode.dbFunction
+
+    Public TextValue As String
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+
+        'Session("sUserId") = "A189"
+        'Session("JOBNO") = "A133"
+
+        'Session("SubJOBNO") = "00"
+        'Session("UserType") = "RCM"
+
+        Response.AddHeader("Refresh", Convert.ToString((Session.Timeout * 60) + 5))
+        If CType(Session("sUserId"), String) = "" Then
+            Response.Write("<script langauge=javascript> xx=open('./Default.aspx', '_top'); </script>")
+        End If
+
+        If IsPostBack = False Then
+            txtjobcode.Text = Session("JOBNO")
+            lblsubjobno.Text = Session("SubJOBNO")
+            lblerror.Text = ""
+            bind_site()
+            If Session("UserType") = "RCM" Then
+                btnAdd.Enabled = True
+            Else
+                btnAdd.Enabled = False
+
+            End If
+            End If
+    End Sub
+    Private Sub bind_site()
+        'txtsitecode.Text = ExecuteStatement.SelectStringHO("select site_cd from job_dir where job_no='" & Session("JOBNO") & "' and sub_job='" & Session("SubJOBNO") & "'")
+
+        txtsitecode.Text = ExecuteStatement.SelectStringHO("select site_cd from job_dir where job_no in (SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM='" & Session("USERID") & "') ) ORDER BY site_cd")
+
+        txtsitename.Text = ExecuteStatement.SelectStringHO("select site_name from site_dir where site_cd='" & txtsitecode.Text & "'")
+        bind_tender()
+        displaygrid()
+    End Sub
+    Protected Sub onPageIndexChanging(ByVal sender As Object, ByVal e As GridViewPageEventArgs)
+        Dim NewPage As Integer = gvemployee.PageIndex + 1
+        If NewPage <= gvemployee.PageCount Then
+            gvemployee.PageIndex = e.NewPageIndex
+        End If
+        gvemployee.DataBind()
+        displaygrid()
+    End Sub
+    Protected Sub btnAdd_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btnAdd.Click
+        displaygrid1()
+    End Sub
+    Private Sub displaygrid()
+        Dim strsql As String
+        Dim myConn1 As New OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings("raConnection1").ConnectionString)
+        '  strsql = "select a.empno,b.empname,a.EMP_ROLE  from RAB_TENDER_USERS a,pdb.vw_employee@DBL_NEWEIL1 b where a.empno=b.empno(+) and a.job_no='" & txtjobcode.Text & "' and a.sub_job='" & lblsubjobno.Text & "' order by a.empno"
+        strsql = "select a.empno,a.empno empname,a.role EMP_ROLE  from RAB_TENDER_USERS a where  a.job_no='" & txtjobcode.Text & "' and a.sub_job='" & lblsubjobno.Text & "' and a.TENDER_NO = '" & ddltenerno.SelectedItem.Value & "' order by a.empno"
+        Dim cmd As OleDbCommand = New OleDbCommand(strsql, myConn1)
+        Try
+            Dim da As OleDbDataAdapter = New OleDbDataAdapter(cmd)
+            Dim poData As DataTable = New DataTable()
+            da.Fill(poData)
+            gvemployee.DataSource = poData
+            gvemployee.DataBind()
+        Catch ex As Exception
+        End Try
+        myConn1.Close()
+    End Sub
+    Private Sub displaygrid1()
+        Dim strsql As String
+        Dim myConn1 As New OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings("raConnection1").ConnectionString)
+        strsql = "select a.empno,a.empno empname   from employee_dir a where a.site_cd='" & txtsitecode.Text & "' and a.empno not in (select empno from RAB_TENDER_USERS where job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "' and  TENDER_NO = '" & ddltenerno.SelectedItem.Value & "' ) and a.empno <> '" & Session("sUserId") & "'  order by empno"
+
+        '        strsql = "select a.empno,b.empname from webcons.employee_dir a, pdb.vw_employee@DBL_NEWEIL1 b where a.site_cd='" & txtsitecode.Text & "' and a.empno not in (select empno from RAB_TENDER_USERS where job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "' and  TENDER_NO = '" & ddltenerno.SelectedItem.Value & "' ) and a.empno <> '" & Session("sUserId") & "' and a.empno=b.empno(+) and b.sep_type=0 order by empno"
+        Dim cmd As OleDbCommand = New OleDbCommand(strsql, myConn1)
+        Try
+            Dim da As OleDbDataAdapter = New OleDbDataAdapter(cmd)
+            Dim poData As DataTable = New DataTable()
+            da.Fill(poData)
+            gvaddemp.DataSource = poData
+            gvaddemp.DataBind()
+        Catch ex As Exception
+        End Try
+        myConn1.Close()
+        ModalPopupExtender1.Show()
+    End Sub
+    Protected Sub btnSubmit_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btnSubmit.Click
+        Dim i As Integer
+        Dim strsql As String
+        Dim dmlStatus As Boolean
+
+        For i = 0 To gvaddemp.Rows.Count - 1
+            Dim empno As String = CType(gvaddemp.Rows(i).FindControl("lblempno"), Label).Text
+
+            Dim emprole As String = CType(gvaddemp.Rows(i).FindControl("ddlemprole"), DropDownList).SelectedItem.Value
+            Dim emproledesc As String = CType(gvaddemp.Rows(i).FindControl("ddlemprole"), DropDownList).SelectedItem.Text
+
+            If emprole = "BE" Or emprole = "AC" Then
+                strsql = "insert into RAB_TENDER_USERS (job_no,empno,TENDER_NO, role,ADDED_ON,ADDED_BY ) values ('" & txtjobcode.Text & "','" & empno & "','" & ddltenerno.SelectedItem.Value & "','" & emprole & "',sysdate,'" & Session("sUserId") & "')"
+                dmlStatus = ExecuteStatement.SetDataHO(strsql)
+
+            End If
+        Next
+        displaygrid()
+    End Sub
+    Protected Sub onrowediting(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.GridViewEditEventArgs)
+        gvemployee.EditIndex = e.NewEditIndex
+        displaygrid()
+    End Sub
+    Protected Sub onrowcancelingedit(ByVal sender As Object, ByVal e As GridViewCancelEditEventArgs)
+        gvemployee.EditIndex = -1
+        displaygrid()
+    End Sub
+
+    Private Sub bind_tender()
+        Dim cmd As OleDbCommand
+        Dim dr As OleDbDataReader
+        Dim Conn As New OleDbConnection(System.Configuration.ConfigurationManager.ConnectionStrings("raConnection1").ConnectionString)
+
+        If ddltenerno.SelectedValue = "" Then
+            Conn.Open()
+            cmd = New OleDbCommand("select distinct TENDER_NO from RAB_TENDER_MASTER where TENDER_NO is not null and job_no='" & txtjobcode.Text & "'  order by TENDER_NO", Conn)
+            cmd.ExecuteNonQuery()
+            dr = cmd.ExecuteReader()
+            ddltenerno.Items.Clear()
+            ddltenerno.Items.Add("")
+            If dr.HasRows Then
+                While dr.Read
+                    ddltenerno.Items.Add(dr.GetValue(0))
+                End While
+            End If
+            Conn.Close()
+            dr.Close()
+        End If
+    End Sub
+
+    Protected Sub onrowupdating(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.GridViewUpdateEventArgs)
+        Dim strsql As String
+        Dim dmlStatus As Boolean
+        Dim empno As String = CType(gvemployee.Rows(e.RowIndex).FindControl("lblempno"), Label).Text
+        Dim emprole As String = CType(gvemployee.Rows(e.RowIndex).FindControl("ddlemproleedit"), DropDownList).SelectedItem.Value
+        Dim emproledesc As String = CType(gvemployee.Rows(e.RowIndex).FindControl("ddlemproleedit"), DropDownList).SelectedItem.Text
+     
+        Dim prevroledesc As String = ExecuteStatement.SelectStringHO("select case role when 'BE' then 'Billing Engineer' when 'AC' then 'Area Coordinator' end emprole from RAB_TENDER_USERS where empno='" & empno & "' and job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "'")
+
+
+        strsql = "update RAB_TENDER_USERS set  role='" & emprole & "'  where empno='" & empno & "' and job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "'  and  TENDER_NO = '" & ddltenerno.SelectedItem.Value & "'"
+        dmlStatus = ExecuteStatement.SetDataHO(strsql)
+ 
+        gvemployee.EditIndex = -1
+        displaygrid()
+    End Sub
+    Protected Sub onrowdeleting(ByVal sender As Object, ByVal e As GridViewDeleteEventArgs)
+        Dim strsql As String
+        Dim dmlStatus As Boolean
+        Dim empno As String = CType(gvemployee.Rows(e.RowIndex).FindControl("lblempno"), Label).Text
+       
+        strsql = "delete from RAB_TENDER_USERS where empno='" & empno & "' and job_no='" & txtjobcode.Text & "' and sub_job='" & lblsubjobno.Text & "'  and  TENDER_NO = '" & ddltenerno.SelectedItem.Value & "'"
+        dmlStatus = ExecuteStatement.SetDataHO(strsql)
+        displaygrid()
+
+    End Sub
+
+   Protected Sub gvemployee_RowDataBound(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.GridViewRowEventArgs) Handles gvemployee.RowDataBound
+        Try
+            If (e.Row.RowType = DataControlRowType.DataRow) Then
+                If Session("UserType") = "RCM" Then
+                    e.Row.Cells(0).Enabled = True
+                    e.Row.Cells(5).Enabled = True
+                Else
+                    e.Row.Cells(0).Enabled = False
+                    e.Row.Cells(5).Enabled = False
+
+                End If
+
+            End If
+        Catch ee As Exception
+
+        End Try
+    End Sub
+
+    
+    Protected Sub ddltenerno_SelectedIndexChanged(ByVal sender As Object, ByVal e As System.EventArgs) Handles ddltenerno.SelectedIndexChanged
+        displaygrid()
+    End Sub
+End Class
+
+  

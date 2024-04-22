@@ -1,0 +1,542 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using AppCode;
+using System.Text;
+using System.Collections;
+
+public partial class RA_Approve_Activity : System.Web.UI.Page
+{
+    dbFunction objDB = new dbFunction();
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login.aspx");
+        }
+      
+        if (!IsPostBack)
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null && ("RCM".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()) || "BE".Equals(Session["ROLE"].ToString())))
+            {
+                bindJobNumber(Session["USERID"].ToString(), Session["ROLE"].ToString());
+            }            
+            else
+            {
+                Response.Redirect("Login.aspx");
+            }                
+        }        
+    }
+
+    protected void bindJobNumber(string userId, string userRole)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        if ("VEND".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_MASTER where C_CODE=:C_CODE");
+            paramList.Add("C_CODE", userId);
+        }
+        else if ("BE".Equals(userRole) || "AC".Equals(userRole))
+        {
+            sbQuery.Append("SELECT DISTINCT JOB_NO FROM RAB_TENDER_USERS where ROLE=:ROLE and EMPNO=:EMPNO and ACTIVE='Y'  ORDER BY JOB_NO");
+            paramList.Add("ROLE", userRole);
+            paramList.Add("EMPNO", userId);
+        }
+        else if ("RCM".Equals(userRole))
+        {
+            sbQuery.Append("SELECT distinct JOB_NO FROM JOB_DIR WHERE SITE_CD IN (SELECT SITE_CD FROM SITE_DIR WHERE EMPNO_RCM=:EMPNO_RCM) ORDER BY JOB_NO");
+            paramList.Add("EMPNO_RCM", userId);
+        }
+        if (sbQuery.Length > 0)
+            objDB.bindDropDownList(ddJobNumber, sbQuery.ToString(), paramList, "JOB_NO", "JOB_NO", "", "--Select Job Number--");
+    }
+    protected void bindTenders(string jobNumber)
+    {
+        StringBuilder sbQuery = new StringBuilder();
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+
+        if ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()))
+        {           
+            sbQuery.Append(@"SELECT DISTINCT TENDER_NO, tenderno||' ( '||b.title||' '||b.title1||')' description   FROM  RAB_TENDER_USERS a,ppms.tenderschedule b 
+                WHERE JOB_NO=:JOB_NO 
+                AND EMPNO=:EMPNO 
+                AND ROLE=:ROLE 
+                and upper(trim(b.projno))=upper(trim(A.JOB_NO))
+               and A.TENDER_NO=b.tendersrno
+               ORDER BY TENDER_NO ");
+
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("EMPNO", Session["USERID"].ToString());
+            paramList.Add("ROLE", Session["ROLE"].ToString());
+
+        }
+        else if ("VEND".Equals(Session["ROLE"].ToString()))
+        {           
+            sbQuery.Append(" Select DISTINCT TENDER_NO , tenderno||' ( '||b.title||' '||b.title1||')' description ")
+             .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+              .Append(" WHERE JOB_NO=:JOB_NO ")
+              .Append(" and C_CODE=:C_CODE ")
+              .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+              .Append(" and A.TENDER_NO=b.tendersrno")
+              .Append(" ORDER BY TENDER_NO ");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+            paramList.Add("C_CODE", Session["USERID"].ToString());
+        }
+        else
+        {
+            sbQuery.Append(" Select DISTINCT TENDER_NO, tenderno||' ( '||b.title||' '||b.title1||')' description ")
+                    .Append(" FROM RAB_TENDER_MASTER a,ppms.tenderschedule b")
+                   .Append(" WHERE JOB_NO=:JOB_NO ")
+                   .Append(" and upper(trim(b.projno))=upper(trim(A.JOB_NO))")
+                   .Append(" and A.TENDER_NO=b.tendersrno")
+                   .Append(" ORDER BY TENDER_NO");
+            paramList.Add("JOB_NO", jobNumber.ToUpper());
+        }
+        objDB.bindDropDownList(ddTenderNo, sbQuery.ToString(), paramList, "TENDER_NO", "description", "", "--Select Tender Number--");
+    }
+
+    protected void ddJobNumber_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue))
+        {
+            bindTenders(ddJobNumber.SelectedValue);
+        }
+        else
+        {
+            Common.Show("Please select Job Number");
+        }
+    }
+
+    protected void ddTenderNo_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (!"".Equals(ddJobNumber.SelectedValue) && !"".Equals(ddTenderNo.SelectedValue))
+        {
+            if (Session["USERID"] != null && Session["ROLE"] != null && ("BE".Equals(Session["ROLE"].ToString()) || "AC".Equals(Session["ROLE"].ToString()) || "RCM".Equals(Session["ROLE"].ToString())))
+            {
+                bindSplittedActivity();
+            }
+            else
+            {
+                Common.Show("This option is valid for BE, AC and RCM only");
+                Response.Redirect("Default.aspx");
+            }       
+        }
+        else
+        {            
+            Common.Show("Please select Job Number and Tender Number");
+        }
+    }
+
+    //BE, AC and RCM can approve the splitted activites as per QC email
+    protected void bindSplittedActivity()
+    {        
+        StringBuilder query = new StringBuilder();           
+        query.Append(@"SELECT a.REF_ID,
+                             a.SEQ_NO,
+                             ACTIVITY_DESC,
+                             ACTIVITY_PERCENT,
+                             IS_BREAKABLE,
+                             ACTIVITY_ID,
+                             BE_FROZEN,
+                             AC_FROZEN,
+                             RCM_FROZEN,
+                             B.SOR_NO,
+                             B.TEND_SOR_ID
+                        FROM RAB_TENDER_DETAILS a, RAB_TENDER_MASTER b
+                       WHERE     rcm_frozen = 'N'
+                             AND a.REF_ID IN (SELECT REF_ID
+                                                FROM RAB_TENDER_MASTER
+                                               WHERE JOB_NO = :JOBNO AND TENDER_NO = :TENDER_NO)                             
+                             AND A.REF_ID = B.REF_ID
+                    ORDER BY SOR_NO, SEQ_NO");
+            Dictionary<string, string> paramList = new Dictionary<string, string>();
+            paramList.Add("TENDER_NO", ddTenderNo.SelectedValue);
+            paramList.Add("JOBNO", ddJobNumber.SelectedValue);
+            objDB.bindGridView(gvSORSplits, query.ToString(), paramList);
+            
+            bindSplitRemarks();
+            if (gvSORSplits.Rows.Count > 0)
+            {
+               // check pending against to show the buttons               
+
+                if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("BE") )
+                {
+                    paramList.Add("BE_FROZEN", "N");
+                    paramList.Add("AC_FROZEN", "N");
+                    paramList.Add("RCM_FROZEN", "N");
+                    if (int.Parse(objDB.executeScalar(@"select count(BE_FROZEN) beCount from RAB_TENDER_DETAILS where ref_id in (select REF_ID from RAB_TENDER_MASTER where JOB_NO =:JOBNO and TENDER_NO=:TENDER_NO ) and BE_FROZEN=:BE_FROZEN and AC_FROZEN=:AC_FROZEN  and RCM_FROZEN=:RCM_FROZEN", paramList)) > 0)
+                    {
+                        trAction.Visible = true;
+                    }
+                }
+                else if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("AC"))
+                {
+                    paramList.Add("BE_FROZEN", "Y");
+                    paramList.Add("AC_FROZEN", "N");
+                    paramList.Add("RCM_FROZEN", "N");
+                    if (int.Parse(objDB.executeScalar(@"select count(AC_FROZEN) beCount from RAB_TENDER_DETAILS where ref_id in (select REF_ID from RAB_TENDER_MASTER where JOB_NO =:JOBNO and TENDER_NO=:TENDER_NO ) and BE_FROZEN=:BE_FROZEN and AC_FROZEN=:AC_FROZEN  and RCM_FROZEN=:RCM_FROZEN ", paramList)) > 0)
+                    {
+                        trAction.Visible = true;
+                    }
+                }
+                else if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("RCM"))
+                {
+                    paramList.Add("BE_FROZEN", "Y");
+                    paramList.Add("AC_FROZEN", "Y");
+                    paramList.Add("RCM_FROZEN", "N");
+                    if (int.Parse(objDB.executeScalar(@"select count(RCM_FROZEN) beCount from RAB_TENDER_DETAILS where ref_id in (select REF_ID from RAB_TENDER_MASTER where JOB_NO =:JOBNO and TENDER_NO=:TENDER_NO ) and BE_FROZEN=:BE_FROZEN and AC_FROZEN=:AC_FROZEN  and RCM_FROZEN=:RCM_FROZEN", paramList)) > 0)
+                    {
+                        trAction.Visible = true;
+                    }
+                }
+                else
+                {
+                    trAction.Visible = false;
+                }                
+            }
+            else
+            {
+                trAction.Visible = false;
+            }
+            
+     }
+    
+    protected void bindSplitRemarks()
+    {        
+        Dictionary<string, string> paramList = new Dictionary<string, string>();
+        paramList.Add("TENDER_NO", ddTenderNo.SelectedValue);
+        paramList.Add("JOBNO", ddJobNumber.SelectedValue);
+        objDB.bindGridView(gvSplitActivityRemarks, "SELECT JOB_NO,TENDER_NO,TENDER_DESC, REMARKS, USER_ROLE, USER_ACTION, ADDED_BY,GET_EMP_NAME(ADDED_BY) empName, ADDED_ON,TO_CHAR(ADDED_ON,'dd-Mon-yyyy') ADDEDON FROM RAB_SPLITTING_REMARKS WHERE JOB_NO =:JOBNO and TENDER_NO=:TENDER_NO   order by (ADDED_ON) desc", paramList);
+    }
+
+    protected void gvSORSplits_RowDataBound_old(object sender, GridViewRowEventArgs e)
+    {       
+            if (e.Row.RowType == DataControlRowType.DataRow)
+            {
+                HiddenField hdBEFrozen = new HiddenField();
+                hdBEFrozen = (HiddenField)e.Row.FindControl("hdBEFrozen");
+
+                HiddenField hdACFrozen = new HiddenField();
+                hdACFrozen = (HiddenField)e.Row.FindControl("hdACFrozen");
+
+                HiddenField hdRCMFrozen = new HiddenField();
+                hdRCMFrozen = (HiddenField)e.Row.FindControl("hdRCMFrozen");
+
+                RadioButton rbApprove = new RadioButton();
+                rbApprove = (RadioButton)e.Row.FindControl("rbApprove");
+
+                RadioButton rbReject = new RadioButton();
+                rbReject = (RadioButton)e.Row.FindControl("rbReject");
+
+                TextBox txtRemarks = new TextBox();
+                txtRemarks = (TextBox)e.Row.FindControl("txtRemarks");
+                
+
+                if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("BE") && hdBEFrozen.Value.Equals("N") && hdACFrozen.Value.Equals("N") && hdRCMFrozen.Value.Equals("N"))
+                {
+                    rbApprove.Enabled = true;
+                    rbReject.Enabled = true;
+                }
+                else if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("AC") && hdBEFrozen.Value.Equals("Y") && hdACFrozen.Value.Equals("N") && hdRCMFrozen.Value.Equals("N"))
+                {
+                    rbApprove.Enabled = true;
+                    rbReject.Enabled = true;
+                }
+                else if (Session["ROLE"] != null && Session["ROLE"].ToString().Equals("RCM") && hdBEFrozen.Value.Equals("Y") && hdACFrozen.Value.Equals("Y") && hdRCMFrozen.Value.Equals("N"))
+                {
+                    rbApprove.Enabled = true;
+                    rbReject.Enabled = true;
+                }                
+                else
+                {
+                    rbApprove.Enabled = false;                    
+                    rbReject.Enabled = false;
+                    txtRemarks.Visible = false;
+                }
+          }
+    }
+
+    protected void btnSubmit_Click(object sender, EventArgs e)
+    {
+
+    }
+
+    protected void btnRejectAll_Click(object sender, EventArgs e)
+    {
+        if (txtRemarks.Text.Length == 0)
+        {
+            Common.Show("Error: Kindly enter rejection remarks!");
+        }
+        else
+        {
+            ArrayList lstArrayInsertQueries = new ArrayList();
+            ArrayList updateParamList = new ArrayList();
+            foreach (GridViewRow rowChild in gvSORSplits.Rows)
+            {
+                HiddenField hdChildReferenceID = new HiddenField();
+                hdChildReferenceID = (HiddenField)rowChild.FindControl("hdChildReferenceID");
+                string referenceId = "";
+                referenceId = hdChildReferenceID.Value;
+
+                HiddenField hdChildSequenceNo = new HiddenField();
+                hdChildSequenceNo = (HiddenField)rowChild.FindControl("hdChildSequenceNo");
+                string sequenceNo = hdChildSequenceNo.Value;
+
+                HiddenField hdActivityId = new HiddenField();
+                hdActivityId = (HiddenField)rowChild.FindControl("hdActivityId");
+
+                HiddenField hdTenderSORId = new HiddenField();
+                hdTenderSORId = (HiddenField)rowChild.FindControl("hdTenderSORId");
+
+                StringBuilder sbUpdateQry = new StringBuilder();
+                Dictionary<string, string> updateParam = new Dictionary<string, string>();
+                ViewState["REF_ID"] = referenceId;
+                ViewState["SEQ_NO"] = sequenceNo;
+                ViewState["ACTIVITY_SEQ"] = hdActivityId.Value.ToString();
+                ViewState["ACTIVITY_SEQ"] = hdTenderSORId.Value.ToString();
+                
+                sbUpdateQry.Append("UPDATE  RAB_TENDER_DETAILS ")
+                         .Append(" SET BE_FROZEN='R', ")
+                         .Append(" AC_FROZEN='N', ")
+                         .Append(" RCM_FROZEN='N' ")
+                         .Append(" WHERE ")
+                         .Append(" REF_ID=:REF_ID ")
+                         .Append(" AND SEQ_NO=:SEQ_NO ")
+                         .Append(" AND ACTIVITY_ID=:ACTIVITY_ID ");
+                updateParam.Add("REF_ID", referenceId);
+                updateParam.Add("SEQ_NO", sequenceNo);
+                updateParam.Add("ACTIVITY_ID", hdActivityId.Value.ToString());
+                lstArrayInsertQueries.Add(sbUpdateQry.ToString());
+                updateParamList.Add(updateParam);
+            }
+
+            Dictionary<string, string> insertParam = new Dictionary<string, string>();
+            insertParam.Add("JOB_NO", ddJobNumber.SelectedValue);
+            insertParam.Add("REMARKS", txtRemarks.Text);
+            insertParam.Add("USER_ROLE", Session["ROLE"].ToString());
+            insertParam.Add("USER_ACTION", "Reject");
+            insertParam.Add("ADDED_BY", Session["USERID"].ToString());
+            insertParam.Add("TENDER_NO", ddTenderNo.SelectedValue);
+            insertParam.Add("TENDER_DESC", ddTenderNo.SelectedItem.ToString());
+            lstArrayInsertQueries.Add("INSERT INTO RAB_SPLITTING_REMARKS (JOB_NO, REMARKS, USER_ROLE, USER_ACTION, ADDED_BY, ADDED_ON, TENDER_NO, TENDER_DESC) VALUES (:JOB_NO, :REMARKS, :USER_ROLE, :USER_ACTION, :ADDED_BY, SYSDATE, :TENDER_NO, :TENDER_DESC)");
+            updateParamList.Add(insertParam);
+
+            int recordsAffected = 0;
+            if (lstArrayInsertQueries.Count > 0)
+            {
+                string[] queryArray = new String[lstArrayInsertQueries.Count];
+                Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[updateParamList.Count];
+                for (int ii = 0; ii < lstArrayInsertQueries.Count; ii++)
+                {
+                    queryArray[ii] = lstArrayInsertQueries[ii].ToString();
+                    paramListArray[ii] = (Dictionary<string, string>)updateParamList[ii];
+                }
+                if (queryArray.Length > 0)
+                    recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+            }
+            if (recordsAffected > 0)
+            {
+                Common.Show("Activities rejected successfully");
+                bindSplittedActivity();
+            }
+            else
+            {
+                Common.Show("Error in rejecting the activities.");
+            }
+            trAction.Visible = false;
+            bindSplittedActivity();
+        }
+    }
+
+    protected void btnApproveAll_Click(object sender, EventArgs e)
+    {
+        ArrayList lstArrayInsertQueries = new ArrayList();
+        ArrayList updateParamList = new ArrayList();
+        foreach (GridViewRow rowChild in gvSORSplits.Rows)
+        {
+            HiddenField hdChildReferenceID = new HiddenField();
+            hdChildReferenceID = (HiddenField)rowChild.FindControl("hdChildReferenceID");
+            string referenceId = "";
+            referenceId = hdChildReferenceID.Value;
+
+            HiddenField hdChildSequenceNo = new HiddenField();
+            hdChildSequenceNo = (HiddenField)rowChild.FindControl("hdChildSequenceNo");
+            string sequenceNo = hdChildSequenceNo.Value;
+
+            HiddenField hdActivityId = new HiddenField();
+            hdActivityId = (HiddenField)rowChild.FindControl("hdActivityId");
+
+            HiddenField hdTenderSORId = new HiddenField();
+            hdTenderSORId = (HiddenField)rowChild.FindControl("hdTenderSORId");
+
+            StringBuilder sbUpdateQry = new StringBuilder();
+            Dictionary<string, string> updateParam = new Dictionary<string, string>();
+
+            ViewState["REF_ID"] = referenceId;
+            ViewState["SEQ_NO"] = sequenceNo;
+            ViewState["ACTIVITY_SEQ"] = hdActivityId.Value.ToString();
+            ViewState["ACTIVITY_SEQ"] = hdTenderSORId.Value.ToString();
+            if (Session["ROLE"].ToString().Equals("RCM"))
+            {
+                sbUpdateQry.Append("UPDATE  RAB_TENDER_DETAILS ")
+                         .Append(" SET BE_FROZEN='Y', ")
+                         .Append(" AC_FROZEN='Y', ")
+                         .Append(" RCM_FROZEN='Y' ");                         
+            }
+            else if (Session["ROLE"].ToString().Equals("BE"))
+            {
+                sbUpdateQry.Append("UPDATE  RAB_TENDER_DETAILS ")
+                         .Append(" SET BE_FROZEN='Y' ") ;                                                
+            }
+            else if (Session["ROLE"].ToString().Equals("AC"))
+            {
+                sbUpdateQry.Append("UPDATE  RAB_TENDER_DETAILS ")
+                         .Append(" SET BE_FROZEN='Y', ")
+                         .Append(" AC_FROZEN='Y' ");
+            }
+            
+            if (sbUpdateQry.Length > 0)
+            {
+                sbUpdateQry.Append(" WHERE ")
+                         .Append(" REF_ID=:REF_ID ")
+                         .Append(" AND SEQ_NO=:SEQ_NO ")
+                         .Append(" AND ACTIVITY_ID=:ACTIVITY_ID ");
+                updateParam.Add("REF_ID", referenceId);
+                updateParam.Add("SEQ_NO", sequenceNo);
+                updateParam.Add("ACTIVITY_ID", hdActivityId.Value.ToString());
+                lstArrayInsertQueries.Add(sbUpdateQry.ToString());
+                updateParamList.Add(updateParam);
+            }
+        }
+
+        if (txtRemarks.Text.Length > 0)
+        {
+            Dictionary<string, string> insertParam = new Dictionary<string, string>();
+            insertParam.Add("JOB_NO", ddJobNumber.SelectedValue);
+            insertParam.Add("REMARKS", txtRemarks.Text);
+            insertParam.Add("USER_ROLE", Session["ROLE"].ToString());
+            insertParam.Add("USER_ACTION", "Approved");
+            insertParam.Add("ADDED_BY", Session["USERID"].ToString());
+            insertParam.Add("TENDER_NO", ddTenderNo.SelectedValue);
+            insertParam.Add("TENDER_DESC", ddTenderNo.SelectedItem.ToString());
+            lstArrayInsertQueries.Add("INSERT INTO RAB_SPLITTING_REMARKS (JOB_NO, REMARKS, USER_ROLE, USER_ACTION, ADDED_BY, ADDED_ON, TENDER_NO, TENDER_DESC) VALUES (:JOB_NO, :REMARKS, :USER_ROLE, :USER_ACTION, :ADDED_BY, SYSDATE, :TENDER_NO, :TENDER_DESC)");
+            updateParamList.Add(insertParam);
+        }
+
+        int recordsAffected = 0;
+        if (lstArrayInsertQueries.Count > 0)
+        {
+            string[] queryArray = new String[lstArrayInsertQueries.Count];
+            Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[updateParamList.Count];
+            for (int ii = 0; ii < lstArrayInsertQueries.Count; ii++)
+            {
+                queryArray[ii] = lstArrayInsertQueries[ii].ToString();
+                paramListArray[ii] = (Dictionary<string, string>)updateParamList[ii];
+            }
+            if (queryArray.Length > 0)
+                recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+        }
+        if (recordsAffected > 0)
+        {
+            trAction.Visible = false;
+            Common.Show("Activities approved successfully");
+            bindSplittedActivity();
+        }
+        else
+        {
+            Common.Show("Error in approving the activities.");
+        }
+        bindSplittedActivity();
+    }
+    
+    protected void btnApprove_Click(object sender, EventArgs e)
+    {
+        ArrayList lstArrayInsertQueries = new ArrayList();
+        ArrayList updateParamList = new ArrayList();
+        foreach (GridViewRow rowChild in gvSORSplits.Rows)
+        {
+            HiddenField hdChildReferenceID = new HiddenField();
+            hdChildReferenceID = (HiddenField)rowChild.FindControl("hdChildReferenceID");
+            string referenceId = "";
+            referenceId = hdChildReferenceID.Value;
+
+            HiddenField hdChildSequenceNo = new HiddenField();
+            hdChildSequenceNo = (HiddenField)rowChild.FindControl("hdChildSequenceNo");
+            string sequenceNo = hdChildSequenceNo.Value;
+
+            HiddenField hdActivityId = new HiddenField();
+            hdActivityId = (HiddenField)rowChild.FindControl("hdActivityId");
+
+            HiddenField hdTenderSORId = new HiddenField();
+            hdTenderSORId = (HiddenField)rowChild.FindControl("hdTenderSORId");
+
+            CheckBox chkReject = new CheckBox();
+            chkReject = (CheckBox)rowChild.FindControl("chkReject");
+
+            StringBuilder sbUpdateQry = new StringBuilder();
+            Dictionary<string, string> updateParam = new Dictionary<string, string>();
+            ViewState["REF_ID"] = referenceId;
+            ViewState["SEQ_NO"] = sequenceNo;
+            ViewState["ACTIVITY_ID"] = hdActivityId.Value.ToString();
+           // ViewState["ACTIVITY_SEQ"] = hdTenderSORId.Value.ToString();
+           if (chkReject.Checked == false)
+           {
+               sbUpdateQry.Append(@"UPDATE  RAB_TENDER_DETAILS 
+                                          SET BE_FROZEN='Y', 
+                                              AC_FROZEN='Y', 
+                                              RCM_FROZEN='Y' 
+                                              WHERE 
+                                              REF_ID=:REF_ID 
+                                              AND SEQ_NO=:SEQ_NO 
+                                              AND ACTIVITY_ID=:ACTIVITY_ID ");
+            updateParam.Add("REF_ID", referenceId);
+            updateParam.Add("SEQ_NO", sequenceNo);
+            updateParam.Add("ACTIVITY_ID", hdActivityId.Value.ToString());
+            lstArrayInsertQueries.Add(sbUpdateQry.ToString());
+            updateParamList.Add(updateParam);
+        }
+           else if (chkReject.Checked == true)
+           {
+               sbUpdateQry.Append(@"UPDATE  RAB_TENDER_DETAILS  
+                                    SET BE_FROZEN='Y', 
+                                        AC_FROZEN='Y', 
+                                        RCM_FROZEN='Y' 
+                                        WHERE 
+                                        REF_ID=:REF_ID 
+                                        AND SEQ_NO=:SEQ_NO 
+                                        AND ACTIVITY_ID=:ACTIVITY_ID ");
+               updateParam.Add("REF_ID", referenceId);
+               updateParam.Add("SEQ_NO", sequenceNo);
+               updateParam.Add("ACTIVITY_ID", hdActivityId.Value.ToString());
+               lstArrayInsertQueries.Add(sbUpdateQry.ToString());
+               updateParamList.Add(updateParam);
+           }
+        }
+
+        int recordsAffected = 0;
+        if (lstArrayInsertQueries.Count > 0)
+        {
+            string[] queryArray = new String[lstArrayInsertQueries.Count];
+            Dictionary<string, string>[] paramListArray = new Dictionary<string, string>[updateParamList.Count];
+            for (int ii = 0; ii < lstArrayInsertQueries.Count; ii++)
+            {
+                queryArray[ii] = lstArrayInsertQueries[ii].ToString();
+                paramListArray[ii] = (Dictionary<string, string>)updateParamList[ii];
+            }
+            if (queryArray.Length > 0)
+                recordsAffected = objDB.executeTransaction(queryArray, paramListArray);
+        }
+        if (recordsAffected > 0)
+        {
+            Common.Show("Activities approved successfully");
+            bindSplittedActivity();
+        }
+        else
+        {
+            Common.Show("Error in approving the activities.");
+        }
+    }
+}

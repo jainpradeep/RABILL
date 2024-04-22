@@ -1,0 +1,36 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using System.Configuration;
+
+public partial class dglBoxForDocument : System.Web.UI.Page
+{
+
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        if (Session["USERID"] == null)
+        {
+            Response.Redirect("Login");
+        }
+
+
+        if (Session["USERID"] != null && Request.QueryString["path"]!=null)
+        {
+            string documentPath = "";
+            documentPath = Request.QueryString["path"].ToString();
+            //documentPath = Server.MapPath("~/" + Constants.attachment_path + Constants.comptetionId + "") + Request.QueryString["path"].ToString().Replace("/", "\\");
+
+            lbliFrame.Text = " <iframe name='documentFile' src='" + Common.Decrypt(documentPath) + "' frameborder='0' scrolling='yes' height='100' width='30%' target='documentFile'></iframe><br />";
+            lblErrorMsg.Text = "";
+        }
+        else
+        {
+            lblErrorMsg.Text = "Error: You are not logged in.";
+            lbliFrame.Text = "";
+            Response.Redirect("Login");
+        }       
+    }
+}

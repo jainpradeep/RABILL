@@ -1,0 +1,51 @@
+﻿<%@ Page Title="" Language="C#" MasterPageFile="~/RA_MenuPage.master" AutoEventWireup="true" CodeFile="RA_CompleteBill_jobNo.aspx.cs" Inherits="RA_CompleteBill_jobNo" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="head" Runat="Server">
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" Runat="Server">
+
+ <table width="100%" class="myTable">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Generate RA Bills (Excel format)
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Job Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Tender Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddTenderNo" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddTenderNo_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+            <td colspan="2">&nbsp;</td>
+            </tr>
+            <tr>
+            <td colspan="2" align="center">
+            <asp:Button ID="btnGenerate" runat="server" Text="Generate Bill" CssClass="myButton" OnClick="btnGenerate_Click"/>
+            </td>
+            </tr>
+            <tr>
+            <td colspan="2">
+            <asp:Label ID="lblError" runat=server ForeColor=Red CssClass="myLabel" Font-Bold=true></asp:Label>
+            </td>
+            </tr>
+            <tr>
+             
+            </table>
+
+</asp:Content>
+

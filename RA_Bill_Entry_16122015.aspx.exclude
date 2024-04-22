@@ -1,0 +1,675 @@
+﻿<%@ Page Language="C#" AutoEventWireup="true" MasterPageFile="~/RA_MenuPage.master"
+    CodeFile="RA_Bill_Entry_16122015.aspx.cs" Inherits="RA_Bill_Entry_16122015" %>
+
+<%@ Register Assembly="AjaxControlToolkit" Namespace="AjaxControlToolkit" TagPrefix="asp" %>
+<asp:Content ID="Content1" ContentPlaceHolderID="head" runat="Server">
+    <script>
+
+        function ShowRec(t) {
+            //alert(t.value);
+            if (t.value == 1) {
+                if (document.getElementById("trRec")) {
+                    document.getElementById("trRec").style.display = "";
+                }
+            }
+            else {
+                if (document.getElementById("trRec")) {
+                    document.getElementById("trRec").style.display = "none";
+                }
+            }
+
+        }
+
+        function ShowMsg(t) {
+            //alert(t.value);
+            if (t.value == 1) {
+                if (document.getElementById("dvRec")) {
+                    document.getElementById("dvRec").style.display = "";
+                }
+            }
+            else {
+                if (document.getElementById("dvRec")) {
+                    document.getElementById("dvRec").style.display = "none";
+                }
+            }
+        }    
+    </script>
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="MainContent" runat="Server">
+    <asp:Button ID="btn_DummyForAssignRackPopup_Control" runat="server" Text="Button"
+        CssClass="hidden" />
+    <asp:ModalPopupExtender ID="ModalPopupExtenderForAssignRack" runat="server" PopupControlID="pnl_assignRack_popup"
+        TargetControlID="btn_DummyForAssignRackPopup_Control" CancelControlID="btnCancel"
+        DropShadow="true" RepositionMode="RepositionOnWindowResizeAndScroll">
+    </asp:ModalPopupExtender>
+    <asp:Panel ID="pnl_assignRack_popup" Style="display: none; background: White; border: 3px solid;
+        border-color: Gray; overflow: scroll; max-height: 600px; min-width: 800px;" runat="server">
+        <div style="margin-left: auto; margin-right: auto;">
+            <table cellpadding="0" cellspacing="0" width="70%">
+                <tr>
+                    <td colspan="2" align="right">
+                        <asp:Button ID="btnClose" runat="server" Text="Close" Font-Bold="true" />
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Activity description
+                    </td>
+                    <td>
+                        <asp:Label ID="lblActivityDesc" runat="server" CssClass="myInput"></asp:Label>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myLabel">
+                        Activity Percentage
+                    </td>
+                    <td>
+                        <asp:Label ID="lblActivityPercent" runat="server" CssClass="myInput" Font-Bold="true"
+                            ForeColor="Red"></asp:Label>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        &nbsp;
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center">
+                        <center>
+                            <div style="margin: 0px auto; width: 90%;">
+                                <!--Template Ends Here Includes Form Tag-->
+                                <div>
+                                    <asp:HiddenField ID="hfEmpno" runat="server" />
+                                    <asp:Panel ID="PnlInvoice" runat="server">
+                                        <table id="tblInv" runat="server" class="myTbl" border="1">
+                                            <thead>
+                                                <tr class="myGridHeader">
+                                                    <th colspan="4">
+                                                        Split Activity
+                                                    </th>
+                                                </tr>
+                                                <tr>
+                                                    <th>
+                                                        S.No.
+                                                    </th>
+                                                    <th>
+                                                        Activity Description
+                                                    </th>
+                                                    <th>
+                                                        Activity Percentage
+                                                    </th>
+                                                    <th>
+                                                        &nbsp;
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="tbdInv">
+                                                <tr class="tr_inv_data">
+                                                    <td>
+                                                        1
+                                                    </td>
+                                                    <td>
+                                                        <input name="txtActDesc1" maxlength="150" class="myInput InvNo" />
+                                                    </td>
+                                                    <td>
+                                                        <input name="txtActPercent1" maxlength="10" class="myInput numeric SetWidthMedium InvAmt" />
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" id="btnAdd" class="btn btn-xs btn-primary classAdd">
+                                                            +</button>
+                                                        <button type="button" id="btnDelete" class="btn btn btn-danger btn-xs deleteContact">
+                                                            -</button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <div align="center">
+                                            <asp:Button ID="Button1" runat="server" Text="Submit" CssClass="myButton" OnClick="btnSubmit_Click"
+                                                Font-Bold="true" /></div>
+                                        <input type="hidden" name="inpTot" id="inpTot" value="1" />
+                                        <br />
+                                        <asp:Label ID="lblActivityError" runat="server" Font-Bold="true" ForeColor="Red"></asp:Label>
+                                    </asp:Panel>
+                                </div>
+                                <div id="dvJquery">
+                                    <script type="text/javascript">
+
+                                        $(function () {
+                                            debug = true;
+
+                                            var rowCount = 1;
+                                            var datePickerOptions = {
+                                                dateFormat: 'dd-mm-yy',
+                                                showOn: "button",
+                                                buttonImage: "img/calendar.gif",
+                                                buttonImageOnly: true,
+                                                maxDate: "0D",
+                                                changeMonth: true,
+                                                changeYear: true
+                                            };
+
+                                            $('.DatePick').datepicker(datePickerOptions);
+                                            $(".numeric").numeric();
+                                            $('.InvNo').keydown(function T(e) {
+                                                var ingnore_key_codes = [70, 188, 191];
+                                                if ($.inArray(e.keyCode, ingnore_key_codes) >= 0) {
+                                                    e.preventDefault();
+                                                }
+                                            });
+
+                                            $(document).on("click", ".classAdd", function () { //
+                                                ++rowCount;    // $('.tr_inv_data').length + 1;
+                                                var contactdiv = '<tr class="tr_inv_data">' +
+                    '<td>' + rowCount + '</td>' +
+                '<td><input name="txtActDesc' + rowCount + '" maxlength="295" class="myInput InvNo" /></td>' +
+                '<td><input name="txtActPercent' + rowCount + '" class="myInput numeric SetWidthMedium InvAmt" maxlength="10" /></td>' +
+                    '<td><button type="button" id="btnAdd" class="btn btn-xs btn-primary classAdd">+</button>' +
+                '<button type="button" id="btnDelete" class="btn btn btn-danger btn-xs deleteContact">-</button></td>' +
+                '</tr>';
+                                                $('#tblInv').append(contactdiv); // Adding these controls to Main table class                      
+                                                $('.DatePick').datepicker(datePickerOptions);
+                                                $(".numeric").numeric();
+                                                $('#inpTot').val(rowCount);
+                                                $('.InvNo').keydown(function T(e) {
+                                                    var ingnore_key_codes = [70, 188, 191];
+                                                    if ($.inArray(e.keyCode, ingnore_key_codes) >= 0) {
+                                                        e.preventDefault();
+                                                    }
+                                                });
+
+                                            });
+
+                                            $(document).on("click", ".deleteContact", function () {
+                                                if ($('.tr_inv_data').length > 1) {
+                                                    $(this).closest("tr").remove(); // closest used to remove the respective 'tr' in which I have my controls   
+                                                    //                        --rowCount;
+                                                    //                        $('#inpTot').val(rowCount);
+                                                }
+                                                else {
+                                                    alert("At least 1 record is required");
+                                                }
+                                            });
+
+
+                                        });           
+            
+                                    </script>
+                                </div>
+                            </div>
+                        </center>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center">
+                        <div style="width: auto;">
+                            <asp:GridView ID="gvSORSplitted" runat="server" Font-Size="10pt" AutoGenerateColumns="false">
+                                <Columns>
+                                    <asp:TemplateField HeaderText="Description">
+                                        <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                        <ItemTemplate>
+                                            <%#Eval("ACTIVITY_DESC")%>
+                                        </ItemTemplate>
+                                    </asp:TemplateField>
+                                    <asp:TemplateField HeaderText="Percentage">
+                                        <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                        <ItemStyle HorizontalAlign="Left" />
+                                        <ItemTemplate>
+                                            <%#Eval("ACTIVITY_PERCENT")%>
+                                        </ItemTemplate>
+                                    </asp:TemplateField>
+                                </Columns>
+                                <RowStyle HorizontalAlign="Center" VerticalAlign="Middle" ForeColor="#000066" BackColor="AliceBlue"
+                                    Font-Size="8pt" />
+                                <SelectedRowStyle BackColor="#669999" Font-Bold="True" ForeColor="White" Font-Size="8pt" />
+                                <AlternatingRowStyle CssClass="myGridAlternatingItemStyle" BackColor="#F7F9FC" Font-Size="8pt" />
+                            </asp:GridView>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <asp:Label ID="lblError" runat="server" Font-Bold="true" CssClass="myInput"></asp:Label>
+                        <asp:HiddenField ID="hdActivityId" runat="server" />
+                        <asp:HiddenField ID="hdReferenceId" runat="server" />
+                        <asp:HiddenField ID="hdSequenceNumber" runat="server" />
+                        <asp:HiddenField ID="hdActivityPercentage" runat="server" />
+                    </td>
+                </tr>
+                <tr>
+                    <td class="myInput" align="center" colspan="2">
+                        <table>
+                            <tr>
+                                <td align="center">
+                                    <asp:Button ID="btnCancel" runat="server" Text="Cancel" Font-Bold="true" />
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </asp:Panel>
+    <br />
+    <asp:Panel ID="pnlSelection" runat="server">
+        <table width="100%" class="myTable">
+            <tr>
+                <td colspan="2" align="center" class="myGridHeader">
+                    Billing Information
+                </td>
+            </tr>
+            <tr id="trRole" runat="server" visible="false">
+                <td class="myLabel">
+                    Select Role
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddRole" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddRole_SelectedIndexChanged"
+                        AutoPostBack="true">
+                        <asp:ListItem Text="Select" Value=""></asp:ListItem>
+                        <asp:ListItem Text="VENDOR" Value="VEND"></asp:ListItem>
+                        <asp:ListItem Text="Billing Engineer" Value="BE"></asp:ListItem>
+                        <asp:ListItem Text="Area Coordinator" Value="AC"></asp:ListItem>
+                        <asp:ListItem Text="RCM" Value="RCM"></asp:ListItem>
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Job Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddJobNumber" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddJobNumber_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td class="myLabel">
+                    Select Tender Number
+                </td>
+                <td>
+                    <asp:DropDownList ID="ddTenderNo" runat="server" CssClass="myInput" OnSelectedIndexChanged="ddTenderNo_SelectedIndexChanged"
+                        AutoPostBack="true">
+                    </asp:DropDownList>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <asp:GridView ID="gvSOR" runat="server" Font-Names="Arial" Font-Size="8pt" Width="99%"
+                        AutoGenerateColumns="False" BackColor="White" BorderWidth="1px" CellPadding="0"
+                        BorderColor="#CCCCCC" BorderStyle="None" OnRowCommand="gvSOR_RowCommand" OnSelectedIndexChanged="gvSOR_SelectedIndexChanged"
+                        OnRowDataBound="gvSOR_RowDataBound">
+                        <Columns>
+                            <asp:TemplateField HeaderText="S.No " HeaderStyle-Width="5%" ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Container.DataItemIndex+1 %>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Sub Job Number" HeaderStyle-Width="5%">
+                                <ItemTemplate>
+                                    <asp:HiddenField ID="hdReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                    <asp:HiddenField ID="hdTenderNo" runat="server" Value='<%#Eval("TENDER_NO") %>' />
+                                    <asp:HiddenField ID="hdSorNumber" runat="server" Value='<%#Eval("SOR_NO") %>' />
+                                    <asp:Label ID="lblSubJobNo" runat="server" Text='<%#Eval("SUB_JOB") %>'></asp:Label>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Unit" HeaderStyle-Width="6%" ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Eval("UNIT_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Tender Number" HeaderStyle-Width="5%">
+                                <ItemTemplate>
+                                    <%#Eval("TENDER_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Part Number" HeaderStyle-Width="5%">
+                                <ItemTemplate>
+                                    <%#Eval("PART_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="SOR Number">
+                                <ItemTemplate>
+                                    <%#Eval("SOR_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="Contractor Code" HeaderStyle-Width="5%">
+                                <ItemTemplate>
+                                    <%#Eval("C_CODE")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="LOI Number" HeaderStyle-Width="6%" ItemStyle-HorizontalAlign="Center">
+                                <ItemTemplate>
+                                    <%#Eval("LOI_NO")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:TemplateField HeaderText="LOI Date" HeaderStyle-Width="5%">
+                                <ItemTemplate>
+                                    <%#Eval("LOI_DATE")%>
+                                </ItemTemplate>
+                            </asp:TemplateField>
+                            <asp:CommandField ShowHeader="True" ShowSelectButton="True" HeaderStyle-Width="5%" />
+                        </Columns>
+                        <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                        <EmptyDataTemplate>
+                            <b>No SOR.</b>
+                        </EmptyDataTemplate>
+                        <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                            VerticalAlign="Middle" CssClass="myGridHeader" />
+                        <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066"
+                            Font-Size="9pt" />
+                        <AlternatingRowStyle BackColor="#e5eff8" BorderWidth="1px" />
+                    </asp:GridView>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    &nbsp;
+                </td>
+            </tr>
+            <tr id="trAddUpdateBill" runat="server" visible="false">
+                <td colspan="2" class="myLabel" align="center">
+                    New Entry&nbsp;<asp:RadioButton ID="rbNewBill" runat="server" GroupName="rbBill"
+                        OnCheckedChanged="rbNewBill_CheckedChanged" AutoPostBack="true" />&nbsp;&nbsp;
+                    Update Old entries&nbsp;<asp:RadioButton ID="rbUpdateBill" runat="server" GroupName="rbBill"
+                        AutoPostBack="true" OnCheckedChanged="rbUpdateBill_CheckedChanged" />
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" align="center">
+                    <asp:Panel ID="pnlBillsAdded" runat="server" >
+                        <asp:GridView ID="gvBillsAdded" runat="server" Font-Names="Arial" Width="30%" AutoGenerateColumns="False"
+                             BorderWidth="1px" CellPadding="0" BorderColor="#CCCCCC" BorderStyle="None"
+                            Caption="Old Bills" Font-Size="Medium"                            
+                            OnRowCommand="gvBillsAdded_RowCommand" OnSelectedIndexChanged="gvBillsAdded_SelectedIndexChanged"                        
+                            >
+                            <Columns>
+                                <asp:TemplateField HeaderText="S.No " HeaderStyle-Width="5%" ItemStyle-HorizontalAlign="Center">
+                                    <ItemTemplate>
+                                        <%#Container.DataItemIndex+1 %>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Bill Sequence No" HeaderStyle-Width="5%">
+                                    <ItemTemplate>
+                                        <asp:HiddenField ID="hdBillReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                        <asp:HiddenField ID="hdBillRunningSRNo" runat="server" Value='<%#Eval("RUN_SL_NO") %>' />                                       
+                                        <%#Eval("RUN_SL_NO")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:TemplateField HeaderText="Dated" HeaderStyle-Width="6%" ItemStyle-HorizontalAlign="Center">
+                                    <ItemTemplate>
+                                        <%#Eval("RUN_SL_DATE")%>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+                                <asp:CommandField ShowHeader="True" ShowSelectButton="True" HeaderStyle-Width="5%" />
+                            </Columns>
+                            <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                            <EmptyDataTemplate>
+                                <b>Bill entry not found.</b>
+                            </EmptyDataTemplate>
+                            <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                                VerticalAlign="Middle" CssClass="myGridHeader" />
+                            <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066"
+                                Font-Size="9pt" />
+                            <AlternatingRowStyle BackColor="#e5eff8" BorderWidth="1px" />
+                        </asp:GridView>
+                    </asp:Panel>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    &nbsp;
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <table width="100%">
+                        <tr>
+                            <td colspan="2">
+                                <asp:Panel ID="pnlSORItems" runat="server" Visible="false">
+                                    <asp:GridView ID="gvSORItems" runat="server" Font-Names="Arial" Font-Size="8pt" Width="99%"
+                                        AutoGenerateColumns="False" BackColor="White" BorderWidth="1px" BorderColor="#CCCCCC"
+                                        BorderStyle="None" OnRowDataBound="gvSORItems_RowDataBound">
+                                        <Columns>
+                                            <asp:TemplateField HeaderText="S.No " ItemStyle-HorizontalAlign="Center">
+                                                <ItemTemplate>
+                                                    <%#Container.DataItemIndex+1 %>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Sequence No">
+                                                <ItemTemplate>
+                                                    <asp:HiddenField ID="hdReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                                    <asp:HiddenField ID="hdSequenceNo" runat="server" Value='<%#Eval("SEQ_NO") %>' />
+                                                    <asp:HiddenField ID="hdSortNumber" runat="server" Value='<%#Eval("SORT_NO") %>' />
+                                                    <asp:HiddenField ID="hdItemRate" runat="server" Value='<%#Eval("ITEM_RATE") %>' />
+                                                    <asp:HiddenField ID="hdItemQuantity" runat="server" Value='<%#Eval("HO_QTY") %>' />
+                                                    <asp:Label ID="lblSequenceNo" runat="server" Text='<%#Eval("SEQ_NO") %>'></asp:Label>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Description" ItemStyle-HorizontalAlign="Left">
+                                                <ItemTemplate>
+                                                    <%#Eval("ldesc")%>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="UOM" ItemStyle-HorizontalAlign="Center">
+                                                <ItemTemplate>
+                                                    <%#Eval("UOM")%>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Actual Qty" ItemStyle-HorizontalAlign="Right">
+                                                <ItemTemplate>
+                                                    <%#Eval("HO_QTY")%>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Rate" ItemStyle-HorizontalAlign="Right">
+                                                <ItemTemplate>
+                                                    <%#Eval("ITEM_RATE")%>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Total Amount">
+                                                <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                                <ItemStyle HorizontalAlign="Center" />
+                                                <ItemTemplate>
+                                                    <asp:Label ID="lblTotalAmount" runat="server"></asp:Label>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                            <asp:TemplateField HeaderText="Split Details">
+                                                <HeaderStyle CssClass="myGridHeader"></HeaderStyle>
+                                                <ItemTemplate>
+                                                    <div style="width: auto;">
+                                                        <asp:GridView ID="gvSORSplits" runat="server" Font-Size="10pt" AutoGenerateColumns="false"
+                                                            OnRowDataBound="gvSORSplits_RowDataBound">
+                                                            <Columns>
+                                                                <asp:TemplateField HeaderText="S.No " ItemStyle-HorizontalAlign="Center" HeaderStyle-HorizontalAlign="Center">
+                                                                    <ItemTemplate>
+                                                                        <%#Container.DataItemIndex+1 %>
+                                                                    </ItemTemplate>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField HeaderText="Activity">
+                                                                    <ItemStyle HorizontalAlign="Left" />
+                                                                    <ItemTemplate>
+                                                                        <asp:HiddenField ID="hdChildReferenceID" runat="server" Value='<%#Eval("REF_ID") %>' />
+                                                                        <asp:HiddenField ID="hdChildSequenceNo" runat="server" Value='<%#Eval("SEQ_NO") %>' />
+                                                                        <asp:HiddenField ID="hdActivityPercent" runat="server" Value='<%#Eval("ACTIVITY_PERCENT") %>' />
+                                                                        <asp:HiddenField ID="hdIsBreakable" runat="server" Value='<%#Eval("IS_BREAKABLE") %>' />
+                                                                        <asp:HiddenField ID="hdActivityId" runat="server" Value='<%#Eval("ACTIVITY_ID") %>' />
+                                                                        <asp:HiddenField ID="hdContractorFrozen" runat="server" Value='<%#Eval("CONT_IS_FROZEN") %>' />
+                                                                        <asp:HiddenField ID="hdVendorQty" runat="server" Value='<%#Eval("CONT_QTY") %>' />
+                                                                        <asp:HiddenField ID="hdBEFrozen" runat="server" Value='<%#Eval("BENGG_IS_FROZEN") %>' />
+                                                                        <asp:HiddenField ID="hdACFrozen" runat="server" Value='<%#Eval("AC_IS_FROZEN") %>' />
+                                                                        <asp:HiddenField ID="hdRCMFrozen" runat="server" Value='<%#Eval("RCM_IS_FROZEN") %>' />
+                                                                        <asp:HiddenField ID="hdRunSrNo" runat="server" Value='<%#Eval("RUN_SL_NO") %>' />
+                                                                        
+                                                                        <asp:Label ID="lblActivityDescription" runat="server" Text='<%#Eval("ACTIVITY_DESC") %>'></asp:Label>
+                                                                    </ItemTemplate>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField HeaderText="Percentage">
+                                                                    <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                                                    <ItemStyle HorizontalAlign="Center" />
+                                                                    <ItemTemplate>
+                                                                        <%#Eval("ACTIVITY_PERCENT")%>
+                                                                    </ItemTemplate>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField HeaderText="Vend Qty" ItemStyle-HorizontalAlign="Right">
+                                                                    <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                                                    <ItemStyle HorizontalAlign="Center" />
+                                                                    <ItemTemplate>
+                                                                        <asp:TextBox ID="txtVenQuantity" runat="server" MaxLength="15" Width="40" class="myInput numeric SetWidthMedium InvAmt"></asp:TextBox>
+                                                                        <asp:Label ID="lblVendQuantity" runat="server"></asp:Label>
+                                                                    </ItemTemplate>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField ItemStyle-HorizontalAlign="Center" Visible="true" HeaderText="BE">
+                                                                    <ItemTemplate>
+                                                                        <asp:Label ID="lblBEReject" runat="server"></asp:Label>
+                                                                        <asp:CheckBox ID="chkBEReject" runat="server" />
+                                                                        <asp:Label ID="lblBEQuantity" runat="server" Text='<%#Eval("BENGG_QTY") %>'  ></asp:Label>
+                                                                        <asp:TextBox ID="txtBEQuantity" runat="server" MaxLength="15" Width="40" class="myInput"
+                                                                            onkeypress='return event.charCode >= 48 && event.charCode <= 57'></asp:TextBox>
+                                                                    </ItemTemplate>
+                                                                    <HeaderStyle Width="10%"></HeaderStyle>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField ItemStyle-HorizontalAlign="Center" Visible="true" HeaderText="AC">
+                                                                    <ItemTemplate>
+                                                                        <asp:Label ID="lblACFrozen" runat="server"></asp:Label>
+                                                                        <asp:CheckBox ID="chkACReject" runat="server" />
+                                                                        <asp:Label ID="lblACQuantity" runat="server" Text='<%#Eval("AC_QTY") %>'></asp:Label>
+                                                                        <asp:TextBox ID="txtACQuantity" runat="server" MaxLength="15" Width="40" class="myInput"
+                                                                            onkeypress='return event.charCode >= 48 && event.charCode <= 57'></asp:TextBox>
+                                                                    </ItemTemplate>
+                                                                    <HeaderStyle Width="10%"></HeaderStyle>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField ItemStyle-HorizontalAlign="Center" Visible="true" HeaderText="RCM">
+                                                                    <ItemTemplate>
+                                                                        <asp:Label ID="lblRCMFrozen" runat="server"></asp:Label>
+                                                                        <asp:CheckBox ID="chkRCMReject" runat="server" />
+                                                                        <asp:Label ID="lblRCMQuantity" runat="server" Text='<%#Eval("RCM_QTY") %>'></asp:Label>
+                                                                        <asp:TextBox ID="txtRCMQuantity" runat="server" MaxLength="15" Width="40" class="myInput"
+                                                                            onkeypress='return event.charCode >= 48 && event.charCode <= 57'></asp:TextBox>
+                                                                    </ItemTemplate>
+                                                                    <HeaderStyle Width="10%"></HeaderStyle>
+                                                                </asp:TemplateField>
+                                                                <asp:TemplateField ItemStyle-HorizontalAlign="Center" Visible="false">
+                                                                    <ItemTemplate>
+                                                                        <asp:Button ID="btnChildSplitActivity" runat="server" Text="Split" OnClick="btnChildSplitActivity_Click"
+                                                                            Font-Bold="true" Key='<%# Eval("REF_ID") + "$" + Eval("SEQ_NO") + "$" + Eval("ACTIVITY_PERCENT") + "$" + Eval("ACTIVITY_DESC")+ "$" + Eval("ACTIVITY_ID")%>' />
+                                                                    </ItemTemplate>
+                                                                    <HeaderStyle Width="10%"></HeaderStyle>
+                                                                </asp:TemplateField>
+                                                            </Columns>
+                                                            <RowStyle HorizontalAlign="Center" VerticalAlign="Middle" ForeColor="#000066" BackColor="AliceBlue"
+                                                                Font-Size="9pt" />
+                                                            <SelectedRowStyle BackColor="#669999" Font-Bold="True" ForeColor="White" Font-Size="8pt" />
+                                                            <AlternatingRowStyle CssClass="myGridAlternatingItemStyle" BackColor="#F7F9FC" Font-Size="8pt" />
+                                                        </asp:GridView>
+                                                    </div>
+                                                </ItemTemplate>
+                                            </asp:TemplateField>
+                                        </Columns>
+                                        <EmptyDataRowStyle BackColor="LightBlue" ForeColor="Red" HorizontalAlign="Center" />
+                                        <EmptyDataTemplate>
+                                            <b>No SOR Items.</b>
+                                        </EmptyDataTemplate>
+                                        <HeaderStyle BorderWidth="1px" Font-Bold="True" ForeColor="White" HorizontalAlign="Center"
+                                            VerticalAlign="Middle" CssClass="myGridHeader" />
+                                        <RowStyle HorizontalAlign="Left" VerticalAlign="Middle" Height="20px" ForeColor="#000066"
+                                            Font-Size="9pt" />
+                                        <AlternatingRowStyle BackColor="#e5eff8" BorderWidth="1px" />
+                                    </asp:GridView>
+                                </asp:Panel>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                &nbsp;
+                            </td>
+                        </tr>
+                        <tr id="trRemarks" runat="server" visible="false">
+                            <td class="myLabel" width="50%" align="right">
+                                Remarks (If Any)
+                            </td>
+                            <td style="width: 50%" align="left">
+                                <asp:TextBox ID="txtRemarks" runat="server" MaxLength="100" Width="450"></asp:TextBox>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                &nbsp;
+                            </td>
+                        </tr>
+                        <tr>
+                            <td align="center" colspan="2">
+                                <asp:Button ID="btnSubmit" runat="server" Visible="true" Text="Submit Quantity" Font-Bold="true"
+                                    OnClick="btnSubmit_Click1" />
+                                <asp:Button ID="btnBESubmit" runat="server" Visible="true" Text="Send for Approval to AC/RCM"
+                                    Font-Bold="true" OnClick="btnBESubmit_Click" />
+                                <asp:Button ID="btnACSubmit" runat="server" Visible="true" Text="Send for Approval to RCM"
+                                    Font-Bold="true" OnClick="btnACSubmit_Click" />
+                                <asp:Button ID="btnRCMSubmit" runat="server" Visible="true" Text="Approve All" Font-Bold="true"
+                                    OnClick="btnRCMSubmit_Click" />
+                                    <asp:Button ID="btnRCMGenerateBill" runat="server" Visible="true" Text="Generate Bill" Font-Bold="true"
+                                    OnClick="btnRCMGenerateBill_Click" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                &nbsp;
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="myGridHeader">
+                                Previous Comments
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" align="center">
+                                <asp:GridView ID="gvSORComments" runat="server" Font-Size="10pt" AutoGenerateColumns="false">
+                                    <Columns>
+                                        <asp:TemplateField HeaderText="S.No " ItemStyle-HorizontalAlign="Center" HeaderStyle-HorizontalAlign="Center">
+                                            <ItemTemplate>
+                                                <%#Container.DataItemIndex+1 %>
+                                            </ItemTemplate>
+                                        </asp:TemplateField>
+                                        <asp:TemplateField HeaderText="Comment By">
+                                            <ItemStyle HorizontalAlign="Left" />
+                                            <ItemTemplate>
+                                                <asp:Label ID="lblCommentBy" runat="server" Text='<%#Eval("ROLE") %>'></asp:Label>
+                                            </ItemTemplate>
+                                        </asp:TemplateField>
+                                        <asp:TemplateField HeaderText="Comment On">
+                                            <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                            <ItemStyle HorizontalAlign="Center" />
+                                            <ItemTemplate>
+                                                <%#Eval("REMARKS_ON")%>
+                                            </ItemTemplate>
+                                        </asp:TemplateField>
+                                        <asp:TemplateField HeaderText="Comment" ItemStyle-HorizontalAlign="Right">
+                                            <HeaderStyle CssClass="myTableHeader"></HeaderStyle>
+                                            <ItemStyle HorizontalAlign="Center" />
+                                            <ItemTemplate>
+                                                <asp:Label ID="lblComment" runat="server" Text='<%#Eval("REMARKS") %>'></asp:Label>
+                                            </ItemTemplate>
+                                        </asp:TemplateField>
+                                    </Columns>
+                                    <EmptyDataTemplate>
+                                        <b>No Comments.</b>
+                                    </EmptyDataTemplate>
+                                    <RowStyle HorizontalAlign="Center" VerticalAlign="Middle" ForeColor="#000066" BackColor="AliceBlue"
+                                        Font-Size="10pt" />
+                                    
+                                </asp:GridView>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </asp:Panel>
+    <div id="Div1">
+        <script type="text/javascript">
+
+            $(function () {
+                debug = true;
+                $(".numeric").numeric();
+            });            
+        </script>
+    </div>
+</asp:Content>

@@ -1,0 +1,381 @@
+.myLoginBody{margin:0px;text-align:center;}
+form{
+margin:0px 0px 0px 0px;
+padding:0px 0px 0px 0px;
+}
+#myTableMain{
+padding:0px 0px 0px 0px;
+margin:0px 0px 0px 0px;
+width:100%;
+font-size:100%;
+width:expression(document.body.clientWidth>778?document.body.clientWidth:778);
+}
+#myTopBrandBannerTable{
+width:100%;
+border:none 0px #FFFFFF ;
+background-color:#1e61a9;
+}
+#myTopBrandBanner1{}
+.brandImg{
+width:136px;
+height:42px;
+border:none 0px #FFFFFF;
+}
+#myTopBrandBanner{
+width:100%;
+filter:progid:DXImageTransform.Microsoft.Gradient(startColorStr='#82ade2', endColorStr='#FFFFFF', gradientType='0');
+}
+#myMiddleBannerTable
+{
+width:100%;
+/*font:100% Tahoma, Helvetica;*/
+font:100% Verdana, Helvetica;
+}
+#myMiddleBrandBannerTable{
+width:100%;
+border:none 0px #FFFFFF ;
+background-color:#82ade2;
+}
+#myMiddleBrandBanner{}
+.brandImg{
+width:136px;
+height:42px;
+border:none 0px #FFFFFF;
+}
+#myMiddleBanner{
+width:100%;
+/*filter:progid:DXImageTransform.Microsoft.Gradient(startColorStr='#82ade2', endColorStr='#FFFFFF', gradientType='1');*/
+}
+#myMiddleBrandBannerBlank
+{
+background-color:#4B92E9;
+/*filter:progid:DXImageTransform.Microsoft.Gradient(startColorStr='#FFFFFF', endColorStr='#FFFFFF', gradientType='1');*/
+}
+#myBottomBannerTable{
+background-color:dodgerblue;
+width:100%;
+border:none 0px #FFFFFF;
+}
+#myBottomBrandBannerTable{
+width:100%;
+border:none 0px #FFFFFF ;
+background-color:#1e61a9;
+}
+#myBottomBrandBanner{}
+.brandImg{
+width:136px;
+height:42px;
+border:none 0px #FFFFFF;
+}
+#myBottomBanner{
+width:100%;
+filter:progid:DXImageTransform.Microsoft.Gradient(startColorStr='#FFFFFF', endColorStr='#82ade2', gradientType='0');
+}
+.myHeaderLink
+{
+	border-right: #a1c6eb 1px;
+	padding-right: 5px;
+	border-top: #a1c6eb 1px;
+	display: block;
+	padding-left: 5px;
+	padding-bottom: 1px;
+	font: bold 70% Helvetica, Tahoma;
+	border-left: #a1c6eb 1px;
+	width: 100%;
+	color: #000000;
+	padding-top: 1px;
+	border-bottom: #a1c6eb 1px;
+	text-decoration: none;
+}
+.myHeaderLink:hover
+{
+	padding-right: 5px;
+	display: block;
+	padding-left: 5px;
+	padding-bottom: 1px;
+	font: bold 70% Helvetica, Tahoma;
+	width: 100%;
+	cursor: hand;
+	color: #cc33cc;
+	padding-top: 1px;
+	background-color: #ffffff;
+	text-decoration: underline;
+}
+.myLoginTopFrame
+{
+	font-weight: bold;
+	font-size: 16pt;
+	color: black;
+	font-family:Helvetica;
+	background:transparent;
+}
+.myLoginBodyText
+{
+	margin:0px;
+	font-weight: normal;
+	font-size: 9pt;
+	color:Black;
+	font-family: Verdana;
+	background-color:Transparent;
+	padding-top:0px;
+	padding-bottom:5px;
+	padding-left:2px;
+	padding-right:12px;
+	vertical-align:super;
+}
+.myLoginText
+{
+  border-style:solid;
+  border-width:1px;
+  border-color:#000000;
+  background-color:floralWhite;
+  font-family: Verdana;
+  font-size: 9pt;
+  color:Black;
+
+}
+.myLoginButton
+{
+ font-size: 9pt;
+ font-family:Verdana;
+}
+.myLoginTopLabel
+{
+ font-weight:bold;
+ font-size: 9pt;
+ font-family:Verdana;
+ background-color:#82ade2;
+ color:#000000;
+}
+.myLoginLabel
+{
+	font-weight: normal;
+	font-size: 10pt;
+	color: black;
+	font-family:Verdana;
+	background-color: #e5eff8;
+}
+.myLoginMessage
+{
+	font-weight:bold;
+	font-size:8pt;
+	color:black;
+	font-family:Verdana;
+	background-color: #e5eff8;
+}
+.myLoginInfo
+{
+	font-weight: normal;
+	font-size: 8pt;
+	color: #003399;
+	font-family:Verdana;
+	text-align:left;
+}
+.myError
+{
+	color:Red;
+	font-family:verdana;
+	font-size:8pt;
+}
+.myLeftMenu
+{
+	font-weight: normal;
+	font-size: 8pt;
+	color:Black;
+	font-family: Verdana;
+	background-color: White;
+	forecolor:black;
+	
+}
+.myLeftMenuBody
+{
+    margin-left:0px;
+    margin-top:5px;
+    margin-right:0px;
+    background-color:#c3d9ff;
+}
+.myLeftMenuTable
+{
+    padding:0;
+    border:0;
+    width:190px;
+    background-color:White;          
+}
+.myTopMenu
+{
+	font-weight: normal;
+	font-size: 8pt;
+	color:Black;
+	font-family: Verdana;
+	background:transparent;
+}
+.myPanel
+{ 
+	border-style:ridge;
+	border-width:1px;
+	width:400px;
+	Border-Color:Blue;
+}
+.myPageHeader
+{
+	background:#c3d9ff;
+	font-weight:bold;
+	color:Black;
+	font-family:Verdana;
+	font-size: 10pt;
+	text-align:center;
+}
+.myError
+{
+	color:Red;
+	font-family:verdana;
+	font-size:8pt;
+}
+.myLabel
+{
+	font-weight: bold;
+	font-size: 8pt;
+	color: #3399ff;
+	font-family: Verdana;
+}
+.myInput
+{	
+	font-size: 8pt;
+	COLOR:black; 
+	font-family:Verdana;
+}
+.myHyperlink
+{
+	font-family:Verdana;
+	font-size:8pt;
+	text-align:left;
+}
+.myStar
+{
+	color:#cc0000;
+	font-family:Verdana;
+	font-size:8pt;
+	text-align:left;
+	font-weight:bold;
+}
+.myButton
+{
+	font-size: 8pt;
+	COLOR:black; 
+	font-family:Verdana;
+}
+.myGridHeader
+{
+    background: #82ade2;
+    font-weight: bold;
+    color: white;
+    font-family: Verdana;
+    font-size: 10pt;
+    text-align: center;
+    /*text-align: left;*/
+}
+.myGridAlternatingItemStyle
+{
+	background-color:#e5eff8;
+	font-family:Verdana;
+	font-size:9pt;
+}
+.myGridTextItem
+{
+	font-family:Verdana;
+	font-size:8pt;
+}
+.myGridEditTextItem
+{
+	background-color:PeachPuff;
+	font-family:Verdana;
+	font-size:8pt;
+}
+.myGridSelectedItemStyle
+{
+	background-color:PeachPuff;
+	font-family:Verdana;
+	font-size:8pt;
+}
+.myInputDisplay
+{
+	font-size: 8pt;
+	color:black;
+	font-family:Verdana;
+	background-color:AliceBlue;
+	border-width:0;
+}
+.myValidator
+{
+	font-size: 8pt;
+	color: red;
+	font-family:Verdana;
+	text-align: left;
+}
+.myTopMenuDynamicHoverStyle
+{
+    border-color:Black;
+    border-width:1px;
+    background-color:Silver;
+    font-size: 8pt;
+    color: black;
+   	font-family:Verdana;
+}
+
+.myTopMenuStaticHoverStyle
+{
+	border-color:Black;
+	background-color:white;
+	border-width:1px;
+	font-size: 8pt;
+	color: black;
+	font-family:Verdana;
+}
+.myTopMenuDynamicMenuItemStyle
+{
+    border-color:white;
+    border-width:1px;
+	font-size: 8pt;
+	color: black;
+	font-family:Verdana;
+}
+.myTopMenuDynamicMenuStyle
+{
+    border-color:black;
+    background-color:white;
+    border-width:1px;
+    color : Black;
+}
+.myTopMenuStaticMenuItemStyle
+{
+   	padding-left:0px;
+   	padding-left:0px;
+   	font-size: 8pt;
+	color: black;
+	font-family:Verdana;
+	font-weight:bold;
+}
+.myTopMenuStaticMenuStyle
+{
+ 
+}
+.tdGToolbar{
+border:solid 0px #1E77D3;
+padding:0px 4px 0px 4px;
+font-size:100%;
+}
+.tdGToolbarEnd{
+padding-right:30px;
+}
+.myTable
+{
+	border-style:ridge;
+	border-width:1px;
+	width:100%;
+	Border-Color:Blue;padding-left:3px;padding-top:3px;padding-right:3px;padding-bottom:3px;
+}
+.hidden
+{
+	display:none;
+}
+	
